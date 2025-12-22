@@ -44,7 +44,7 @@ android {
     buildFeatures { buildConfig = true }
 
     defaultConfig {
-        applicationId = "com.junkfood.seal"
+        applicationId = "gain.aura"
         minSdk = 24
         targetSdk = 35
         versionCode = 200_000_150
@@ -110,7 +110,7 @@ android {
             }
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            resValue("string", "app_name", "Seal Debug")
+            resValue("string", "app_name", "Aura Downloader Debug")
         }
     }
 
@@ -125,7 +125,7 @@ android {
         create("githubPreview") {
             dimension = "publishChannel"
             applicationIdSuffix = ".preview"
-            resValue("string", "app_name", "Seal Preview")
+            resValue("string", "app_name", "Aura Downloader Preview")
         }
 
         create("fdroid") {
@@ -143,6 +143,11 @@ android {
         }
     }
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
     kotlinOptions { freeCompilerArgs = freeCompilerArgs + "-opt-in=kotlin.RequiresOptIn" }
 
     packaging {
@@ -151,7 +156,7 @@ android {
     }
     androidResources { generateLocaleConfig = true }
 
-    namespace = "com.junkfood.seal"
+    namespace = "gain.aura"
 }
 
 ktfmt { kotlinLangStyle() }

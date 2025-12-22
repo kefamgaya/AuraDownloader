@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">Seal</string>
+    <string name="app_name" translatable="false">Aura Downloader</string>
     <string name="video_directory">Video folder</string>
     <string name="extract_audio">Save as audio</string>
     <string name="create_thumbnail">Save thumbnail</string>
@@ -17,6 +17,7 @@
     <string name="download_error_msg">Could not download file</string>
     <string name="download_start_msg">Download \"%1$s\"</string>
     <string name="fetch_info_error_msg">Could not fetch video info</string>
+    <string name="youtube_not_supported">YouTube videos are not supported. Cannot search or download YouTube content.</string>
     <string name="general_settings">General</string>
     <string name="language">Display language</string>
     <string name="language_settings">Set display language</string>
@@ -450,4 +451,26 @@
         <item quantity="one">%d audio</item>
         <item quantity="other">%d audios</item>
     </plurals>
+    <string name="skip">Skip</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="get_started">Get Started</string>
+    <string name="onboarding_welcome_title">Welcome to AURA</string>
+    <string name="onboarding_welcome_desc">Download videos and audio from 1000+ websites. Simple, fast, and free.</string>
+    <string name="onboarding_download_title">Easy Downloads</string>
+    <string name="onboarding_download_desc">Paste a video URL and download with customizable settings. Support for playlists, formats, and subtitles.</string>
+    <string name="onboarding_history_title">Manage Your Downloads</string>
+    <string name="onboarding_history_desc">View and manage all your downloaded videos and audio files in one place. Re-download or share anytime.</string>
+    <string name="copyright_disclaimer_title">Copyright Notice</string>
+    <string name="copyright_disclaimer_message">You can download videos for personal use only. Do not distribute downloaded content or use it in ways that violate copyright laws. AURA is not responsible for any misuse of downloaded content.</string>
+    <string name="i_understand">I Understand</string>
+    <string name="download_video_as">Download Video As</string>
+    <string name="fast">Fast</string>
+    <string name="classic_mp3">Classic MP3</string>
+    <string name="fast_360p">Fast (360p)</string>
+    <string name="high_quality_720p">High Quality (720p)</string>
+    <string name="hd_1080p">HD (1080p)</string>
+    <string name="qhd_2k">QHD (2K)</string>
+    <string name="uhd_4k">UHD (4K)</string>
+    <string name="more_formats">More Formats</string>
 </resources>
