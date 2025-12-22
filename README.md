@@ -1,118 +1,106 @@
-<div align="center">
-
-<img width="" src="fastlane/metadata/android/en-US/images/icon.png"  width=160 height=160  align="center">
-
 # AURA
 
-### Video/Audio Downloader for Android
+A modern, user-friendly video and audio downloader for Android.
 
+## Features
 
-English
+- **Download Videos & Audio**: Download videos and audio files from 1000+ websites supported by [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+- **Simple Interface**: Clean, intuitive Material Design 3 UI with dark theme support
+- **Format Selection**: Automatically selects the best quality based on your preferences, or choose manually
+- **Download Queue**: Manage all your downloads in one place with progress tracking
+- **Playlist Support**: Download entire playlists with a single click
+- **Subtitle Support**: Download and embed subtitles into your videos
+- **Customizable Settings**: Configure download directory, format preferences, and more
+- **Background Downloads**: Continue downloading even when the app is in the background
+- **No Ads**: Completely free and open source with no advertisements
 
+## Download
 
+Get the latest release from [GitHub Releases](https://github.com/kefamgaya/AuraDownloader/releases/latest).
 
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/kefamgaya/AuraDownloader?color=black&label=Stable&logo=github)](https://github.com/kefamgaya/AuraDownloader/releases/latest/)
-[![GitHub all releases](https://img.shields.io/github/downloads/kefamgaya/AuraDownloader/total?label=Downloads&logo=github)](https://github.com/kefamgaya/AuraDownloader/releases/)
-[![GitHub Repo stars](https://img.shields.io/github/stars/kefamgaya/AuraDownloader?style=flat&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHN2ZyBoZWlnaHQ9IjI0IiB2aWV3Qm94PSIwIC05NjAgOTYwIDk2MCIgd2lkdGg9IjI0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxwYXRoIGQ9Im0zNTQtMjQ3IDEyNi03NiAxMjYgNzctMzMtMTQ0IDExMS05Ni0xNDYtMTMtNTgtMTM2LTU4IDEzNS0xNDYgMTMgMTExIDk3LTMzIDE0M1pNMjMzLTgwbDY1LTI4MUw4MC01NTBsMjg4LTI1IDExMi0yNjUgMTEyIDI2NSAyODggMjUtMjE4IDE4OSA2NSAyODEtMjQ3LTE0OUwyMzMtODBabTI0Ny0zNTBaIiBzdHlsZT0iZmlsbDogcmdiKDI0NSwgMjI3LCA2Nik7Ii8%2BCjwvc3ZnPg%3D%3D&color=%23f8e444)](https://github.com/kefamgaya/AuraDownloader/stargazers)
-[![Supported-Sites](https://img.shields.io/badge/Sites-9cf?style=flat&logo=data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHN2ZyBoZWlnaHQ9IjI0cHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjI0cHgiIGZpbGw9IiNGRkZGRkYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHBhdGggZD0iTTAgMGgyNHYyNEgwVjB6IiBmaWxsPSJub25lIi8+CiAgPHBhdGggZD0iTTExLjk5IDJDNi40NyAyIDIgNi40OCAyIDEyczQuNDcgMTAgOS45OSAxMEMxNy41MiAyMiAyMiAxNy41MiAyMiAxMlMxNy41MiAyIDExLjk5IDJ6bTYuOTMgNmgtMi45NWMtLjMyLTEuMjUtLjc4LTIuNDUtMS4zOC0zLjU2IDEuODQuNjMgMy4zNyAxLjkxIDQuMzMgMy41NnpNMTIgNC4wNGMuODMgMS4yIDEuNDggMi41MyAxLjkxIDMuOTZoLTMuODJjLjQzLTEuNDMgMS4wOC0yLjc2IDEuOTEtMy45NnpNNC4yNiAxNEM0LjEgMTMuMzYgNCAxMi42OSA0IDEycy4xLTEuMzYuMjYtMmgzLjM4Yy0uMDguNjYtLjE0IDEuMzItLjE0IDJzLjA2IDEuMzQuMTQgMkg0LjI2em0uODIgMmgyLjk1Yy4zMiAxLjI1Ljc4IDIuNDUgMS4zOCAzLjU2LTEuODQtLjYzLTMuMzctMS45LTQuMzMtMy41NnptMi45NS04SDUuMDhjLjk2LTEuNjYgMi40OS0yLjkzIDQuMzMtMy41NkM4LjgxIDUuNTUgOC4zNSA2Ljc1IDguMDMgOHpNMTIgMTkuOTZjLS44My0xLjItMS40OC0yLjUzLTEuOTEtMy45NmgzLjgyYy0uNDMgMS40My0xLjA4IDIuNzYtMS45MSAzLjk2ek0xNC4zNCAxNEg5LjY2Yy0uMDktLjY2LS4xNi0xLjMyLS4xNi0ycy4wNy0xLjM1LjE2LTJoNC42OGMuMDkuNjUuMTYgMS4zMi4xNiAycy0uMDcgMS4zNC0uMTYgMnptLjI1IDUuNTZjLjYtMS4xMSAxLjA2LTIuMzEgMS4zOC0zLjU2aDIuOTVjLS45NiAxLjY1LTIuNDkgMi45My00LjMzIDMuNTZ6TTE2LjM2IDE0Yy4wOC0uNjYuMTQtMS4zMi4xNC0ycy0uMDYtMS4zNC0uMTQtMmgzLjM4Yy4xNi42NC4yNiAxLjMxLjI2IDJzLS4xIDEuMzYtLjI2IDJoLTMuMzh6IiBzdHlsZT0iZmlsbDogcmdiKDE2MiwgMTk4LCAyMzQpOyIvPgo8L3N2Zz4=&label=Supported)](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+## Requirements
 
+- Android 8.0 (API level 26) or higher
+- Internet connection for downloading videos
 
-</div>
+## Usage
 
+1. Open the app and paste a video URL in the input field
+2. Click "Search" to fetch video information
+3. Select your preferred format and quality
+4. Click "Download" to start the download
+5. Monitor progress in the Downloads section
 
-## 📱 Screenshots
+## Settings
 
-<div align="center">
-<div>
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.jpg" width="30%" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/9.jpg" width="30%" />
-</div>
-</div>
+AURA offers a simplified settings experience:
 
-<br>
+- **General**: Configure notifications, thumbnails, and download behavior
+- **Format**: Set default video/audio format and quality preferences
+- **Network**: Manage cellular data usage and cookies
+- **Appearance**: Customize theme and language
 
-## 📖 Features
+## Building from Source
 
-- Download videos and audio files from video platforms supported by [yt-dlp](https://github.com/yt-dlp/yt-dlp) (formerly youtube-dl).
+### Prerequisites
 
-- Embed metadata and video thumbnail into extracted audio files supported by [mutagen](https://github.com/quodlibet/mutagen).
+- Android Studio Hedgehog or later
+- JDK 21 or later
+- Android SDK with API level 26+
 
-- Download all videos in the playlist with one click.
+### Build Steps
 
-- Use embedded [aria2c](https://github.com/aria2/aria2) as external downloader for all your downloads.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/kefamgaya/AuraDownloader.git
+   cd AuraDownloader/Seal
+   ```
 
-- Embed subtitles into the downloaded videos.
+2. Open the project in Android Studio
 
-- Execute custom yt-dlp commands with templates.
+3. Sync Gradle files
 
-- Manage in-app downloads and custom command templates.
+4. Build the APK:
+   ```bash
+   ./gradlew assembleDebug
+   ```
 
-- Easy to use and user-friendly.
+   Or build a release APK:
+   ```bash
+   ./gradlew assembleRelease
+   ```
 
-- [Material Design 3](https://m3.material.io/) style UI, with dynamic color theme.
+## Contributing
 
-- MAD: UI and logic written with pure Kotlin. Single activity, no fragments, only composable destinations.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
+For bug reports and feature requests, please open an issue on [GitHub Issues](https://github.com/kefamgaya/AuraDownloader/issues).
 
-## ⬇️ Download
+## Credits
 
-For most devices, it is recommended to install the **arm64-v8a** version of the apks
+AURA is built using:
 
-- Download the latest stable version from [GitHub releases](https://github.com/kefamgaya/AuraDownloader/releases/latest)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Video downloader engine
+- [youtubedl-android](https://github.com/yausername/youtubedl-android) - Android wrapper for yt-dlp
+- [Jetpack Compose](https://developer.android.com/jetpack/compose) - Modern Android UI toolkit
+- [Material Design 3](https://m3.material.io/) - Design system
 
-<!-- [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-     alt="Get it on F-Droid"
-     height="70">](https://f-droid.org/packages/com.junkfood.seal/) -->
+AURA is a fork of [Seal](https://github.com/JunkFood02/Seal), redesigned with a focus on simplicity and user experience.
 
-## 💬 Contact
+## License
 
-For questions, issues, or contributions, please open an issue on [GitHub](https://github.com/kefamgaya/AuraDownloader/issues).
+This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) file for details.
 
-## 💖 Support
+## Disclaimer
 
-AURA is free and open source for everyone. If you like it, please consider giving it a star on GitHub!
+AURA is for personal use only. Please respect copyright laws and terms of service of the websites you download from. The developers are not responsible for any misuse of this software.
 
-## 🤝 Contributing
+---
 
-Contributions are welcome!
-
-For submitting bug reports, feature requests, questions, or any other ideas to improve, please open an issue on [GitHub](https://github.com/kefamgaya/AuraDownloader/issues).
-
-## ⭐️ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=kefamgaya/AuraDownloader&type=Timeline)](https://star-history.com/#kefamgaya/AuraDownloader&Timeline)
-
-
-## 🧱 Credits
-
-AURA is a simple GUI of [yt-dlp](https://github.com/yt-dlp/yt-dlp), based on [youtubedl-android](https://github.com/yausername/youtubedl-android)
-
-AURA is a fork of [Seal](https://github.com/JunkFood02/Seal), with simplified UI and enhanced user experience.
-
-Some of the UI designs and codes are borrowed from [Read You](https://github.com/Ashinch/ReadYou) and [Music You](https://github.com/Kyant0/MusicYou)
-
-[dvd](https://github.com/yausername/dvd)
-
-[Material color utilities](https://github.com/material-foundation/material-color-utilities)
-
-[Monet](https://github.com/Kyant0/Monet)
-
-## 📃 License
-
-[![GitHub](https://img.shields.io/github/license/kefamgaya/AuraDownloader?style=for-the-badge)](https://github.com/kefamgaya/AuraDownloader/blob/main/LICENSE)
-
-This project is licensed under the GPLv3 license.
-
-<div align="right">
-<table><td>
-<a href="#start-of-content">👆 Scroll to top</a>
-</td></table>
-</div>
+Made with ❤️ for the open source community
