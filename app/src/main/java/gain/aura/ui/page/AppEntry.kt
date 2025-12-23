@@ -1,5 +1,7 @@
 package gain.aura.ui.page
 
+import android.Manifest
+import android.os.Build
 import android.webkit.CookieManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -11,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -27,6 +30,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionStatus
+import com.google.accompanist.permissions.rememberPermissionState
 import gain.aura.App
 import gain.aura.R
 import gain.aura.ui.common.Route
@@ -37,6 +43,7 @@ import gain.aura.ui.common.id
 import gain.aura.ui.common.slideInVerticallyComposable
 import gain.aura.ui.page.command.TaskListPage
 import gain.aura.ui.page.command.TaskLogPage
+import gain.aura.ui.page.download.NotificationPermissionDialog
 import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel
 import gain.aura.ui.page.downloadv2.DownloadPageV2
 import gain.aura.ui.page.settings.SettingsPage
@@ -72,6 +79,7 @@ private const val TAG = "HomeEntry"
 private val TopDestinations =
     listOf(Route.HOME, Route.TASK_LIST, Route.SETTINGS_PAGE, Route.DOWNLOAD_QUEUE)
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
 
@@ -83,13 +91,34 @@ fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
     val versionReport = App.packageInfo.versionName.toString()
     val appName = stringResource(R.string.app_name)
 
-    // Check if onboarding is completed
+    // Check if onboarding is completed - only show once per installation
     var showOnboarding by rememberSaveable {
         mutableStateOf(!ONBOARDING_COMPLETED.getBoolean())
     }
     var showCopyrightDialog by rememberSaveable {
         mutableStateOf(false)
     }
+    
+    // Track if we've asked for notification permission on first launch
+    val NOTIFICATION_PERMISSION_ASKED = "notification_permission_asked"
+    var hasAskedNotificationPermission by remember {
+        mutableStateOf(NOTIFICATION_PERMISSION_ASKED.getBoolean(false))
+    }
+    
+    var showNotificationPermissionDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+    
+    // Notification permission state (Android 13+)
+    val notificationPermission =
+        if (Build.VERSION.SDK_INT >= 33) {
+            rememberPermissionState(permission = Manifest.permission.POST_NOTIFICATIONS) { granted ->
+                // Close dialog after permission is granted or denied
+                showNotificationPermissionDialog = false
+                hasAskedNotificationPermission = true
+                PreferenceUtil.encodeBoolean(NOTIFICATION_PERMISSION_ASKED, true)
+            }
+        } else null
 
     val onNavigateBack: () -> Unit = {
         with(navController) {
@@ -107,21 +136,24 @@ fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
 
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     var currentTopDestination by rememberSaveable { mutableStateOf(currentRoute) }
-
+    
     LaunchedEffect(currentRoute) {
         if (currentRoute in TopDestinations) {
             currentTopDestination = currentRoute
         }
     }
 
-    // Show onboarding if not completed
+    // Show onboarding if not completed - only once per installation
     if (showOnboarding) {
         OnboardingPage(
             onComplete = {
+                // Save preference to ensure onboarding only shows once
+                encodeBoolean(ONBOARDING_COMPLETED, true)
                 showOnboarding = false
                 showCopyrightDialog = true
             },
             onSkip = {
+                // Save preference to ensure onboarding only shows once
                 encodeBoolean(ONBOARDING_COMPLETED, true)
                 showOnboarding = false
                 showCopyrightDialog = true
@@ -135,12 +167,48 @@ fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
         CopyrightDisclaimerDialog(
             onDismissRequest = {
                 showCopyrightDialog = false
+                // After copyright dialog, check if we need to ask for notification permission
+                if (!hasAskedNotificationPermission && Build.VERSION.SDK_INT >= 33 && 
+                    notificationPermission?.status is PermissionStatus.Denied) {
+                    showNotificationPermissionDialog = true
+                }
             },
             onUnderstand = {
                 showCopyrightDialog = false
+                // After copyright dialog, check if we need to ask for notification permission
+                if (!hasAskedNotificationPermission && Build.VERSION.SDK_INT >= 33 && 
+                    notificationPermission?.status is PermissionStatus.Denied) {
+                    showNotificationPermissionDialog = true
+                }
             },
         )
         return
+    }
+    
+    // Show notification permission dialog on first app open (after onboarding/copyright)
+    if (showNotificationPermissionDialog && Build.VERSION.SDK_INT >= 33) {
+        NotificationPermissionDialog(
+            onDismissRequest = {
+                showNotificationPermissionDialog = false
+                hasAskedNotificationPermission = true
+                PreferenceUtil.encodeBoolean(NOTIFICATION_PERMISSION_ASKED, true)
+            },
+            onPermissionGranted = {
+                // Close dialog first, then launch permission request
+                showNotificationPermissionDialog = false
+                notificationPermission?.launchPermissionRequest()
+            },
+        )
+        return
+    }
+    
+    // Auto-request notification permission if not asked yet and onboarding is complete
+    LaunchedEffect(showOnboarding, showCopyrightDialog, hasAskedNotificationPermission) {
+        if (!showOnboarding && !showCopyrightDialog && !hasAskedNotificationPermission && 
+            Build.VERSION.SDK_INT >= 33 && 
+            notificationPermission?.status is PermissionStatus.Denied) {
+            showNotificationPermissionDialog = true
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

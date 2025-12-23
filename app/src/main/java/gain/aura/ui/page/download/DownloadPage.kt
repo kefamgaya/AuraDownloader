@@ -212,7 +212,11 @@ fun DownloadPage(
                 showNotificationDialog = false
                 NOTIFICATION.updateBoolean(false)
             },
-            onPermissionGranted = { notificationPermission?.launchPermissionRequest() },
+            onPermissionGranted = {
+                // Close dialog first, then launch permission request
+                showNotificationDialog = false
+                notificationPermission?.launchPermissionRequest()
+            },
         )
     }
 

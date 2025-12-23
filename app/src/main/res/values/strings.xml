@@ -42,6 +42,10 @@
     <string name="about_page">Version, feedback, auto update</string>
     <string name="back">Back</string>
     <string name="version">Version</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="privacy_policy_desc">View our privacy policy</string>
+    <string name="support_email">Support Email</string>
+    <string name="email_copied">Email address copied to clipboard</string>
     <string name="release_desc">Look for changelogs and new versions</string>
     <string name="release">Latest release</string>
     <string name="readme_desc">Check the GitHub repository and the README</string>
@@ -240,6 +244,10 @@
     <string name="auto_subtitle">Automatic captions</string>
     <string name="auto_subtitle_desc">Download auto-generated captions</string>
     <string name="title_activity_share">Quick download</string>
+    <string name="quick_download">Quick Download</string>
+    <string name="open_in_app">Open in App</string>
+    <string name="choose_action">Choose how you want to proceed:</string>
+    <string name="download_video">Download Video</string>
     <string name="abs_hint">Most video streaming platforms deliver audio and video separately, you can select and merge an audio-only format with a video-only format to a single video.</string>
     <string name="video_title_sample_text">Video title sample text</string>
     <string name="video_creator_sample_text">Video creator sample text</string>

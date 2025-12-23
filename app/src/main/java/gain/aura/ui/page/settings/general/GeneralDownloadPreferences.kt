@@ -72,15 +72,17 @@ fun GeneralDownloadPreferences(onNavigateBack: () -> Unit) {
         mutableStateOf(NotificationUtil.areNotificationsEnabled())
     }
 
+    var showNotificationDialog by remember { mutableStateOf(false) }
+
     val notificationPermission =
         if (Build.VERSION.SDK_INT >= 33)
             rememberPermissionState(permission = Manifest.permission.POST_NOTIFICATIONS) { status ->
+                // Close dialog after permission is granted or denied
+                showNotificationDialog = false
                 if (!status) ToastUtil.makeToast(context.getString(R.string.permission_denied))
                 else isNotificationPermissionGranted = true
             }
         else null
-
-    var showNotificationDialog by remember { mutableStateOf(false) }
 
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
@@ -161,10 +163,11 @@ fun GeneralDownloadPreferences(onNavigateBack: () -> Unit) {
         NotificationPermissionDialog(
             onDismissRequest = { showNotificationDialog = false },
             onPermissionGranted = {
+                // Close dialog first, then launch permission request
+                showNotificationDialog = false
                 notificationPermission?.launchPermissionRequest()
                 NOTIFICATION.updateBoolean(true)
                 downloadNotification = true
-                showNotificationDialog = false
             },
         )
     }

@@ -1,5 +1,6 @@
 package gain.aura.ui.page
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -13,16 +14,20 @@ import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import gain.aura.ui.common.LocalDarkTheme
 import gain.aura.util.DarkThemePreference
 import gain.aura.util.PreferenceUtil
@@ -31,6 +36,7 @@ import gain.aura.download.DownloaderV2
 import gain.aura.ui.common.Route
 import gain.aura.ui.page.downloadv2.DownloadPageV2
 import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel
+import gain.aura.ads.BannerAdView
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,43 +54,54 @@ fun DownloadQueuePage(
     val isDownloadQueueSelected = currentRoute == Route.DOWNLOAD_QUEUE
     val darkThemePreference = LocalDarkTheme.current
     val isDarkTheme = darkThemePreference.isDarkTheme()
+    
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
+        rememberTopAppBarState(),
+        canScroll = { true },
+    )
+    
+    val typography = MaterialTheme.typography
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.downloads_history)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-                actions = {
-                    IconButton(
-                        onClick = {
-                            val newTheme = if (isDarkTheme) {
-                                DarkThemePreference.OFF
-                            } else {
-                                DarkThemePreference.ON
-                            }
-                            PreferenceUtil.modifyDarkThemePreference(darkThemeValue = newTheme)
-                        },
-                    ) {
-                        Icon(
-                            imageVector = if (isDarkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                            contentDescription = stringResource(R.string.dark_theme),
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            onNavigateToSettings()
-                        },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = stringResource(R.string.settings),
-                        )
-                    }
-                },
-            )
+            val overrideTypography =
+                remember(typography) { typography.copy(headlineMedium = typography.displaySmall) }
+
+            MaterialTheme(typography = overrideTypography) {
+                LargeTopAppBar(
+                    title = { Text(text = stringResource(R.string.downloads_history)) },
+                    scrollBehavior = scrollBehavior,
+                    expandedHeight = TopAppBarDefaults.LargeAppBarExpandedHeight + 24.dp,
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                val newTheme = if (isDarkTheme) {
+                                    DarkThemePreference.OFF
+                                } else {
+                                    DarkThemePreference.ON
+                                }
+                                PreferenceUtil.modifyDarkThemePreference(darkThemeValue = newTheme)
+                            },
+                        ) {
+                            Icon(
+                                imageVector = if (isDarkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                                contentDescription = stringResource(R.string.dark_theme),
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                onNavigateToSettings()
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = stringResource(R.string.settings),
+                            )
+                        }
+                    },
+                )
+            }
         },
         bottomBar = {
             NavigationBar {
@@ -121,12 +138,15 @@ fun DownloadQueuePage(
             }
         },
     ) { paddingValues ->
-        DownloadPageV2(
-            modifier = Modifier.fillMaxSize().padding(paddingValues),
-            onMenuOpen = {},
-            dialogViewModel = dialogViewModel,
-            downloader = downloader,
-        )
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            DownloadPageV2(
+                modifier = Modifier.weight(1f),
+                onMenuOpen = {},
+                dialogViewModel = dialogViewModel,
+                downloader = downloader,
+            )
+            BannerAdView()
+        }
     }
 }
 

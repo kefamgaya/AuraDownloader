@@ -24,6 +24,7 @@ import gain.aura.util.FileUtil
 import gain.aura.util.NotificationUtil
 import gain.aura.util.PreferenceUtil
 import gain.aura.util.VideoInfo
+import gain.aura.ads.AdManager
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlin.collections.component1
 import kotlin.collections.component2

@@ -86,6 +86,11 @@ class App : Application() {
         clipboard = getSystemService()!!
         connectivityManager = getSystemService()!!
 
+        // Initialize AdMob
+        if (!isFDroidBuild()) {
+            gain.aura.ads.AdManager.initialize(this)
+        }
+
         applicationScope.launch((Dispatchers.IO)) {
             try {
                 YoutubeDL.init(this@App)

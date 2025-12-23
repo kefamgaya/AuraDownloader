@@ -62,7 +62,12 @@ import gain.aura.util.RES_HIGHEST
 import gain.aura.util.VIDEO_QUALITY
 import gain.aura.util.VideoInfo
 import gain.aura.util.toHttpsUrl
+import gain.aura.ads.AdManager
+import gain.aura.App.Companion.isFDroidBuild
+import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 
 sealed class DownloadOption {
@@ -90,6 +95,42 @@ fun SimplifiedDownloadDialog(
     var selectedOption by remember { mutableStateOf<DownloadOption?>(null) }
     var showMoreFormats by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    
+    // Track ad loading state - allow download after 10 seconds timeout even if ad fails (skip for F-Droid builds)
+    var isAdReady by remember { mutableStateOf(isFDroidBuild()) }
+    var adLoadTimeout by remember { mutableStateOf(false) }
+    
+    // Load ad when dialog opens (skip for F-Droid builds)
+    LaunchedEffect(Unit) {
+        if (isFDroidBuild()) {
+            isAdReady = true
+            return@LaunchedEffect
+        }
+        
+        // Check if ad is already loaded
+        if (AdManager.isInterstitialAdLoaded()) {
+            isAdReady = true
+        } else {
+            // Load ad if not already loading
+            if (!AdManager.isInterstitialAdLoading()) {
+                AdManager.loadInterstitialAd(context)
+            }
+            // Poll until ad is loaded (with timeout - max 10 seconds)
+            var attempts = 0
+            val maxAttempts = 50 // 50 * 200ms = 10 seconds
+            while (attempts < maxAttempts && !AdManager.isInterstitialAdLoaded()) {
+                kotlinx.coroutines.delay(200) // Check every 200ms
+                attempts++
+            }
+            isAdReady = AdManager.isInterstitialAdLoaded()
+            // If timeout reached, allow download anyway
+            if (!isAdReady && attempts >= maxAttempts) {
+                adLoadTimeout = true
+                isAdReady = true // Allow download even if ad failed to load
+            }
+        }
+    }
 
     val allFormats = videoInfo.formats ?: emptyList()
     val audioFormats = allFormats.filter { it.isAudioOnly() }
@@ -133,53 +174,79 @@ fun SimplifiedDownloadDialog(
     var selectedVideoOnlyFormat by remember { mutableIntStateOf(NOT_SELECTED) }
     var selectedAudioOnlyFormat by remember { mutableIntStateOf(NOT_SELECTED) }
     
+    // Helper functions for format validation (must be defined before LaunchedEffect)
+    fun getFileSize(format: Format?): String? {
+        if (format == null) return null
+        val duration = videoInfo.duration ?: 0.0
+        // Calculate file size: fileSize > fileSizeApprox > (tbr * duration * 125) where 125 = 1000/8 (kbps to bytes)
+        val sizeBytes = format.fileSize 
+            ?: format.fileSizeApprox 
+            ?: (duration * (format.tbr ?: 0.0) * 125.0)
+        
+        // Return null if size is 0 or invalid
+        if (sizeBytes <= 0) return null
+        
+        val sizeMB = sizeBytes / (1024.0 * 1024.0)
+        return when {
+            sizeMB >= 1024 -> String.format("%.2f GB", sizeMB / 1024.0)
+            sizeMB >= 1 -> String.format("%.1f MB", sizeMB)
+            else -> String.format("%.0f KB", sizeMB * 1024.0)
+        }
+    }
+    
+    fun isFormatValid(format: Format?): Boolean {
+        if (format == null) return false
+        val fileSize = getFileSize(format)
+        return fileSize != null && fileSize != "0 KB" && fileSize != "0 MB" && fileSize != "0 GB"
+    }
+    
     // Auto-select format based on settings preferences
     LaunchedEffect(videoInfo, extractAudio, videoQuality, audioFormats, videoFormats, videoOnlyFormats) {
         if (selectedOption == null) {
             val autoSelectedOption: DownloadOption? = when {
                 // If audio extraction is enabled, select audio format
                 extractAudio && audioFormats.isNotEmpty() -> {
-                    // Prefer classic MP3 if available, otherwise fast audio
-                    val classicFormat = audioFormats.find { it.ext == "mp3" }
+                    // Prefer classic MP3 if available and valid, otherwise fast audio
+                    val classicFormat = audioFormats.find { it.ext == "mp3" && isFormatValid(it) }
                     if (classicFormat != null) {
                         DownloadOption.AudioClassic(classicFormat)
                     } else {
-                        DownloadOption.AudioFast(audioFormats.firstOrNull())
+                        audioFormats.firstOrNull { isFormatValid(it) }?.let { DownloadOption.AudioFast(it) }
                     }
                 }
                 // If video, select based on quality preference
                 !extractAudio && (videoFormats.isNotEmpty() || videoOnlyFormats.isNotEmpty()) -> {
                     when (videoQuality) {
-                        RES_2160P -> uhd4KVideoFormat?.let { DownloadOption.Video4K(it) }
-                            ?: qhd2KVideoFormat?.let { DownloadOption.Video2K(it) }
-                            ?: hd1080VideoFormat?.let { DownloadOption.VideoHD1080(it) }
-                            ?: hd720VideoFormat?.let { DownloadOption.VideoHD720(it) }
-                            ?: fastVideoFormat?.let { DownloadOption.VideoFast(it) }
-                        RES_1440P -> qhd2KVideoFormat?.let { DownloadOption.Video2K(it) }
-                            ?: hd1080VideoFormat?.let { DownloadOption.VideoHD1080(it) }
-                            ?: hd720VideoFormat?.let { DownloadOption.VideoHD720(it) }
-                            ?: fastVideoFormat?.let { DownloadOption.VideoFast(it) }
-                        RES_1080P -> hd1080VideoFormat?.let { DownloadOption.VideoHD1080(it) }
-                            ?: hd720VideoFormat?.let { DownloadOption.VideoHD720(it) }
-                            ?: fastVideoFormat?.let { DownloadOption.VideoFast(it) }
-                        RES_720P -> hd720VideoFormat?.let { DownloadOption.VideoHD720(it) }
-                            ?: fastVideoFormat?.let { DownloadOption.VideoFast(it) }
-                        RES_360P -> fastVideoFormat?.let { DownloadOption.VideoFast(it) }
+                        RES_2160P -> uhd4KVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.Video4K(it) }
+                            ?: qhd2KVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.Video2K(it) }
+                            ?: hd1080VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD1080(it) }
+                            ?: hd720VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD720(it) }
+                            ?: fastVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoFast(it) }
+                        RES_1440P -> qhd2KVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.Video2K(it) }
+                            ?: hd1080VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD1080(it) }
+                            ?: hd720VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD720(it) }
+                            ?: fastVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoFast(it) }
+                        RES_1080P -> hd1080VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD1080(it) }
+                            ?: hd720VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD720(it) }
+                            ?: fastVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoFast(it) }
+                        RES_720P -> hd720VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD720(it) }
+                            ?: fastVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoFast(it) }
+                        RES_360P -> fastVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoFast(it) }
                         RES_HIGHEST, 0 -> {
-                            // Best quality - select highest available
-                            uhd4KVideoFormat?.let { DownloadOption.Video4K(it) }
-                                ?: qhd2KVideoFormat?.let { DownloadOption.Video2K(it) }
-                                ?: hd1080VideoFormat?.let { DownloadOption.VideoHD1080(it) }
-                                ?: hd720VideoFormat?.let { DownloadOption.VideoHD720(it) }
-                                ?: fastVideoFormat?.let { DownloadOption.VideoFast(it) }
+                            // Best quality - select highest available valid format
+                            uhd4KVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.Video4K(it) }
+                                ?: qhd2KVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.Video2K(it) }
+                                ?: hd1080VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD1080(it) }
+                                ?: hd720VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD720(it) }
+                                ?: fastVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoFast(it) }
                         }
                         else -> {
-                            // Default to best available quality
-                            uhd4KVideoFormat?.let { DownloadOption.Video4K(it) }
-                                ?: qhd2KVideoFormat?.let { DownloadOption.Video2K(it) }
-                                ?: hd1080VideoFormat?.let { DownloadOption.VideoHD1080(it) }
-                                ?: hd720VideoFormat?.let { DownloadOption.VideoHD720(it) }
-                                ?: fastVideoFormat?.let { DownloadOption.VideoFast(it) }
+                            // Default to best available valid quality
+                            uhd4KVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.Video4K(it) }
+                                ?: qhd2KVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.Video2K(it) }
+                                ?: hd1080VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD1080(it) }
+                                ?: hd720VideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoHD720(it) }
+                                ?: fastVideoFormat?.takeIf { isFormatValid(it) }?.let { DownloadOption.VideoFast(it) }
                         }
                     }
                 }
@@ -188,22 +255,6 @@ fun SimplifiedDownloadDialog(
             if (autoSelectedOption != null) {
                 selectedOption = autoSelectedOption
             }
-        }
-    }
-
-    fun getFileSize(format: Format?): String {
-        if (format == null) return "0 MB"
-        val duration = videoInfo.duration ?: 0.0
-        // Calculate file size: fileSize > fileSizeApprox > (tbr * duration * 125) where 125 = 1000/8 (kbps to bytes)
-        val sizeBytes = format.fileSize 
-            ?: format.fileSizeApprox 
-            ?: (duration * (format.tbr ?: 0.0) * 125.0)
-        
-        val sizeMB = sizeBytes / (1024.0 * 1024.0)
-        return when {
-            sizeMB >= 1024 -> String.format("%.2f GB", sizeMB / 1024.0)
-            sizeMB >= 1 -> String.format("%.1f MB", sizeMB)
-            else -> String.format("%.0f KB", sizeMB * 1024.0)
         }
     }
 
@@ -228,10 +279,10 @@ fun SimplifiedDownloadDialog(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Video Info Preview
+            // Video Info Preview - Compact
             item {
                 FormatVideoPreview(
                     modifier = Modifier.fillMaxWidth(),
@@ -250,14 +301,14 @@ fun SimplifiedDownloadDialog(
             }
 
             item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             }
 
             // Quick Options
             item {
                 Text(
                     text = stringResource(R.string.download_video_as),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                 )
             }
 
@@ -265,90 +316,98 @@ fun SimplifiedDownloadDialog(
                 item {
                     Text(
                         text = stringResource(R.string.audio),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
                     )
                 }
 
-                item {
-                    OptionRow(
-                        label = stringResource(R.string.fast),
-                        fileSize = getFileSize(fastAudioFormat),
-                        selected = selectedOption is DownloadOption.AudioFast,
-                        onClick = { selectedOption = DownloadOption.AudioFast(fastAudioFormat) },
-                    )
+                if (isFormatValid(fastAudioFormat)) {
+                    item {
+                        OptionRow(
+                            label = stringResource(R.string.fast),
+                            fileSize = getFileSize(fastAudioFormat) ?: "",
+                            selected = selectedOption is DownloadOption.AudioFast,
+                            onClick = { selectedOption = DownloadOption.AudioFast(fastAudioFormat) },
+                        )
+                    }
                 }
 
-                item {
-                    OptionRow(
-                        label = stringResource(R.string.classic_mp3),
-                        fileSize = getFileSize(classicAudioFormat),
-                        selected = selectedOption is DownloadOption.AudioClassic,
-                        onClick = { selectedOption = DownloadOption.AudioClassic(classicAudioFormat) },
-                    )
+                if (isFormatValid(classicAudioFormat)) {
+                    item {
+                        OptionRow(
+                            label = stringResource(R.string.classic_mp3),
+                            fileSize = getFileSize(classicAudioFormat) ?: "",
+                            selected = selectedOption is DownloadOption.AudioClassic,
+                            onClick = { selectedOption = DownloadOption.AudioClassic(classicAudioFormat) },
+                        )
+                    }
                 }
             }
 
             if (videoFormats.isNotEmpty() || videoOnlyFormats.isNotEmpty()) {
                 item {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 }
 
                 item {
                     Text(
                         text = stringResource(R.string.video),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
                     )
                 }
 
-                item {
-                    OptionRow(
-                        label = stringResource(R.string.fast_360p),
-                        fileSize = getFileSize(fastVideoFormat),
-                        selected = selectedOption is DownloadOption.VideoFast,
-                        onClick = { selectedOption = DownloadOption.VideoFast(fastVideoFormat) },
-                    )
+                if (isFormatValid(fastVideoFormat)) {
+                    item {
+                        OptionRow(
+                            label = stringResource(R.string.fast_360p),
+                            fileSize = getFileSize(fastVideoFormat) ?: "",
+                            selected = selectedOption is DownloadOption.VideoFast,
+                            onClick = { selectedOption = DownloadOption.VideoFast(fastVideoFormat) },
+                        )
+                    }
                 }
 
-                if (hd720VideoFormat != null) {
+                if (isFormatValid(hd720VideoFormat)) {
                     item {
                         OptionRow(
                             label = stringResource(R.string.high_quality_720p),
-                            fileSize = getFileSize(hd720VideoFormat),
+                            fileSize = getFileSize(hd720VideoFormat) ?: "",
                             selected = selectedOption is DownloadOption.VideoHD720,
                             onClick = { selectedOption = DownloadOption.VideoHD720(hd720VideoFormat) },
                         )
                     }
                 }
 
-                if (hd1080VideoFormat != null) {
+                if (isFormatValid(hd1080VideoFormat)) {
                     item {
                         OptionRow(
                             label = stringResource(R.string.hd_1080p),
-                            fileSize = getFileSize(hd1080VideoFormat),
+                            fileSize = getFileSize(hd1080VideoFormat) ?: "",
                             selected = selectedOption is DownloadOption.VideoHD1080,
                             onClick = { selectedOption = DownloadOption.VideoHD1080(hd1080VideoFormat) },
                         )
                     }
                 }
 
-                if (qhd2KVideoFormat != null) {
+                if (isFormatValid(qhd2KVideoFormat)) {
                     item {
                         OptionRow(
                             label = stringResource(R.string.qhd_2k),
-                            fileSize = getFileSize(qhd2KVideoFormat),
+                            fileSize = getFileSize(qhd2KVideoFormat) ?: "",
                             selected = selectedOption is DownloadOption.Video2K,
                             onClick = { selectedOption = DownloadOption.Video2K(qhd2KVideoFormat) },
                         )
                     }
                 }
 
-                if (uhd4KVideoFormat != null) {
+                if (isFormatValid(uhd4KVideoFormat)) {
                     item {
                         OptionRow(
                             label = stringResource(R.string.uhd_4k),
-                            fileSize = getFileSize(uhd4KVideoFormat),
+                            fileSize = getFileSize(uhd4KVideoFormat) ?: "",
                             selected = selectedOption is DownloadOption.Video4K,
                             onClick = { selectedOption = DownloadOption.Video4K(uhd4KVideoFormat) },
                         )
@@ -357,7 +416,7 @@ fun SimplifiedDownloadDialog(
             }
 
             item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             }
 
             // More Formats Toggle
@@ -367,18 +426,18 @@ fun SimplifiedDownloadDialog(
                         selected = showMoreFormats,
                         onClick = { showMoreFormats = !showMoreFormats },
                         role = Role.Button,
-                    ).padding(vertical = 12.dp),
+                    ).padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = stringResource(R.string.more_formats),
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     Icon(
                         imageVector = if (showMoreFormats) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -390,17 +449,17 @@ fun SimplifiedDownloadDialog(
                     enter = expandVertically(),
                     exit = shrinkVertically(),
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         // Suggested Format
                         if (!videoInfo.requestedFormats.isNullOrEmpty() || !videoInfo.requestedDownloads.isNullOrEmpty()) {
                             FormatSubtitle(
                                 text = stringResource(R.string.suggested),
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
                             )
                             val requestedFormats = videoInfo.requestedFormats
                                 ?: videoInfo.requestedDownloads?.map { it.toFormat() }
                                 ?: emptyList()
-                            requestedFormats.forEach { format ->
+                            requestedFormats.filter { isFormatValid(it) }.forEach { format ->
                                 val isSelected = selectedOption is DownloadOption.CustomFormat &&
                                     (selectedOption as DownloadOption.CustomFormat).format == format
                                 FormatItem(
@@ -416,12 +475,13 @@ fun SimplifiedDownloadDialog(
                         }
 
                         // Audio Formats
-                        if (audioFormats.isNotEmpty()) {
+                        val validAudioFormats = audioFormats.filter { isFormatValid(it) }
+                        if (validAudioFormats.isNotEmpty()) {
                             FormatSubtitle(
                                 text = stringResource(R.string.audio),
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
                             )
-                            audioFormats.take(6).forEach { format ->
+                            validAudioFormats.take(6).forEach { format ->
                                 val isSelected = selectedOption is DownloadOption.CustomFormat &&
                                     (selectedOption as DownloadOption.CustomFormat).format == format
                                 FormatItem(
@@ -437,12 +497,13 @@ fun SimplifiedDownloadDialog(
                         }
 
                         // Video Only Formats
-                        if (videoOnlyFormats.isNotEmpty()) {
+                        val validVideoOnlyFormats = videoOnlyFormats.filter { isFormatValid(it) }
+                        if (validVideoOnlyFormats.isNotEmpty()) {
                             FormatSubtitle(
                                 text = stringResource(R.string.video_only),
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
                             )
-                            videoOnlyFormats.take(6).forEach { format ->
+                            validVideoOnlyFormats.take(6).forEach { format ->
                                 val isSelected = selectedOption is DownloadOption.CustomFormat &&
                                     (selectedOption as DownloadOption.CustomFormat).format == format
                                 FormatItem(
@@ -458,12 +519,13 @@ fun SimplifiedDownloadDialog(
                         }
 
                         // Video + Audio Formats
-                        if (videoFormats.isNotEmpty()) {
+                        val validVideoFormats = videoFormats.filter { isFormatValid(it) }
+                        if (validVideoFormats.isNotEmpty()) {
                             FormatSubtitle(
                                 text = stringResource(R.string.video),
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
                             )
-                            videoFormats.take(6).forEach { format ->
+                            validVideoFormats.take(6).forEach { format ->
                                 val isSelected = selectedOption is DownloadOption.CustomFormat &&
                                     (selectedOption as DownloadOption.CustomFormat).format == format
                                 FormatItem(
@@ -482,7 +544,7 @@ fun SimplifiedDownloadDialog(
             }
 
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
             // Download Button
@@ -495,17 +557,28 @@ fun SimplifiedDownloadDialog(
                                           (selectedOption is DownloadOption.CustomFormat && 
                                            (selectedOption as DownloadOption.CustomFormat).format.isAudioOnly())
                         
+                        // Show interstitial ad before starting download (skip for F-Droid builds)
+                        if (!isFDroidBuild()) {
+                            val activity = context as? Activity
+                            activity?.let { AdManager.showInterstitialAd(it) }
+                        }
+                        
+                        // Start download (ad will be dismissed by user, download continues)
                         downloadWithFormat(videoInfo, format, downloader, extractAudio)
                         onDismissRequest()
                         onDownloadStarted()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = selectedOption != null,
+                    enabled = selectedOption != null && isAdReady,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                     ),
                 ) {
-                    Text(stringResource(R.string.download))
+                    if (!isAdReady) {
+                        Text("Loading...")
+                    } else {
+                        Text(stringResource(R.string.download))
+                    }
                 }
             }
         }
@@ -524,7 +597,7 @@ private fun OptionRow(
             selected = selected,
             onClick = onClick,
             role = Role.RadioButton,
-        ).padding(vertical = 12.dp),
+        ).padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {

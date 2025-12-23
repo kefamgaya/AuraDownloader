@@ -16,17 +16,13 @@ plugins {
 
 val keystorePropertiesFile: File = rootProject.file("keystore.properties")
 
-val splitApks = !project.hasProperty("noSplits")
-
-val abiFilterList = (properties["ABI_FILTERS"] as String).split(';')
-
-val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
+// Disable ABI splits for single AAB build (Play Store handles optimization automatically)
+val splitApks = false
 
 val baseVersionName = currentVersion.name
-val currentVersionCode = currentVersion.code.toInt()
 
 android {
-    compileSdk = 35
+    compileSdk = 36
 
     if (keystorePropertiesFile.exists()) {
         val keystoreProperties = Properties()
@@ -46,51 +42,33 @@ android {
     defaultConfig {
         applicationId = "gain.aura"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 200_000_150
-        check(versionCode == currentVersionCode)
-
-        versionName = baseVersionName
+        targetSdk = 36
+        versionCode = 8
+        versionName = "2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
-        if (splitApks) {
-            splits {
-                abi {
-                    isEnable = true
-                    reset()
-                    include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
-                    isUniversalApk = true
-                }
-            }
-        } else {
-            ndk { abiFilters.addAll(abiFilterList) }
+        // Only include arm64-v8a for smallest Play Store size (covers ~95% of active devices)
+        ndk {
+            abiFilters.addAll(listOf("arm64-v8a"))
+        }
+    }
+
+    // Bundle configuration for Play Store optimization
+    bundle {
+        language {
+            enableSplit = true
+        }
+        density {
+            enableSplit = true
+        }
+        abi {
+            enableSplit = true  // Split by ABI - Play Store will deliver only device's ABI
         }
     }
 
     room { schemaDirectory("$projectDir/schemas") }
     ksp { arg("room.incremental", "true") }
-
-    androidComponents {
-        onVariants { variant ->
-            variant.outputs.forEach { output ->
-                val name =
-                    if (splitApks) {
-                        output.filters
-                            .find { it.filterType == FilterConfiguration.FilterType.ABI }
-                            ?.identifier
-                    } else {
-                        abiFilterList.firstOrNull()
-                    }
-
-                val baseAbiCode = abiCodes[name]
-
-                if (baseAbiCode != null) {
-                    output.versionCode.set(baseAbiCode + (output.versionCode.get() ?: 0))
-                }
-            }
-        }
-    }
 
     buildTypes {
         release {
@@ -105,6 +83,12 @@ android {
             }
         }
         debug {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("githubPublish")
             }
@@ -136,10 +120,23 @@ android {
 
     lint { disable.addAll(listOf("MissingTranslation", "ExtraTranslation", "MissingQuantity")) }
 
+    // Output naming - Customize APK file names
+    // Note: AAB files use default naming (app-{flavor}-{buildType}.aab)
+    // You can rename AAB files manually after build if needed
     applicationVariants.all {
-        outputs.all {
-            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                "Seal-${defaultConfig.versionName}-${name}.apk"
+        val variant = this
+        val buildTypeName = variant.buildType.name
+        val flavorName = variant.flavorName
+        
+        // Rename APK files
+        variant.outputs.all {
+            if (this is com.android.build.gradle.internal.api.ApkVariantOutputImpl) {
+                if (flavorName == "generic" && buildTypeName == "release") {
+                    outputFileName = "aura-${defaultConfig.versionName}-release.apk"
+                } else {
+                    outputFileName = "aura-${defaultConfig.versionName}-${flavorName}-${buildTypeName}.apk"
+                }
+            }
         }
     }
 
@@ -190,6 +187,12 @@ dependencies {
     implementation(libs.bundles.youtubedlAndroid)
 
     implementation(libs.mmkv)
+
+    // AdMob
+    implementation("com.google.android.gms:play-services-ads:23.5.0")
+    
+    // Play Billing Library (required for BILLING permission)
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
 
     testImplementation(libs.junit4)
     androidTestImplementation(libs.androidx.test.ext)

@@ -47,6 +47,7 @@ import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel
 import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel.Action
 import gain.aura.ui.page.downloadv2.configure.SimplifiedDownloadDialog
 import gain.aura.util.ToastUtil
+import gain.aura.ads.BannerAdView
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -141,11 +142,14 @@ fun TabbedHomePage(
             }
         },
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            UrlInputPage(
-                modifier = Modifier.fillMaxSize(),
-                dialogViewModel = dialogViewModel,
-            )
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            Box(modifier = Modifier.weight(1f)) {
+                UrlInputPage(
+                    modifier = Modifier.fillMaxSize(),
+                    dialogViewModel = dialogViewModel,
+                )
+            }
+            BannerAdView()
         }
 
         val sheetState by dialogViewModel.sheetStateFlow.collectAsStateWithLifecycle()

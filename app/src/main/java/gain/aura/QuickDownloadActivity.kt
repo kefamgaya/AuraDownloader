@@ -23,7 +23,10 @@ import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSiz
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -42,6 +45,14 @@ import gain.aura.ui.theme.SealTheme
 import gain.aura.util.PreferenceUtil
 import gain.aura.util.matchUrlFromSharedText
 import gain.aura.util.setLanguage
+import gain.aura.ads.AdManager
+import gain.aura.App.Companion.isFDroidBuild
+import android.net.Uri
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.androidx.viewmodel.ext.android.getViewModel
@@ -83,6 +94,11 @@ class QuickDownloadActivity : ComponentActivity() {
         }
 
         App.startService()
+        
+        // Preload ads early for faster loading in quick download (skip for F-Droid builds)
+        if (!isFDroidBuild() && !AdManager.isInterstitialAdLoaded() && !AdManager.isInterstitialAdLoading()) {
+            AdManager.loadInterstitialAd(this)
+        }
 
         enableEdgeToEdge()
 
@@ -104,10 +120,63 @@ class QuickDownloadActivity : ComponentActivity() {
         }
 
         val viewModel: DownloadDialogViewModel = getViewModel()
-        viewModel.postAction(Action.ProceedWithURLs(listOf(sharedUrlCached)))
 
         setContent {
             SettingsProvider(calculateWindowSizeClass(this).widthSizeClass) {
+                var showChoiceDialog by remember { mutableStateOf(true) }
+                val context = LocalContext.current
+                
+                // Show choice dialog first
+                if (showChoiceDialog) {
+                    SealTheme(
+                        darkTheme = LocalDarkTheme.current.isDarkTheme(),
+                        isHighContrastModeEnabled = LocalDarkTheme.current.isHighContrastModeEnabled,
+                    ) {
+                        AlertDialog(
+                            onDismissRequest = {
+                                showChoiceDialog = false
+                                finish()
+                            },
+                            title = { Text(stringResource(R.string.download_video)) },
+                            text = { Text(stringResource(R.string.choose_action)) },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showChoiceDialog = false
+                                        viewModel.postAction(Action.ProceedWithURLs(listOf(sharedUrlCached)))
+                                    }
+                                ) {
+                                    Text(stringResource(R.string.quick_download))
+                                }
+                            },
+                            dismissButton = {
+                                OutlinedButton(
+                                    onClick = {
+                                        // Open app with link
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(sharedUrlCached)).apply {
+                                            setPackage("gain.aura")
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            // Fallback to main activity
+                                            val mainIntent = Intent(context, gain.aura.MainActivity::class.java).apply {
+                                                putExtra("url", sharedUrlCached)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(mainIntent)
+                                        }
+                                        finish()
+                                    }
+                                ) {
+                                    Text(stringResource(R.string.open_in_app))
+                                }
+                            }
+                        )
+                    }
+                    return@SettingsProvider
+                }
                 SealTheme(
                     darkTheme = LocalDarkTheme.current.isDarkTheme(),
                     isHighContrastModeEnabled = LocalDarkTheme.current.isHighContrastModeEnabled,
