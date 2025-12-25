@@ -10,11 +10,13 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import gain.aura.billing.BillingManager
 import gain.aura.util.PreferenceUtil.getInt
 import gain.aura.util.PreferenceUtil.getLong
 import gain.aura.util.PreferenceUtil.updateInt
 import gain.aura.util.PreferenceUtil.updateLong
 import java.util.Date
+import java.util.concurrent.atomic.AtomicBoolean
 
 object AdManager {
     private const val TAG = "AdManager"
@@ -36,6 +38,12 @@ object AdManager {
     private var sessionInterstitialCount = 0
     
     fun initialize(context: Context) {
+        // Don't initialize ads if user is premium
+        if (BillingManager.isPremium()) {
+            Log.d(TAG, "User is premium, skipping ad initialization")
+            return
+        }
+        
         MobileAds.initialize(context) { initializationStatus ->
             val statusMap = initializationStatus.adapterStatusMap
             for (adapterClass in statusMap.keys) {
@@ -58,6 +66,11 @@ object AdManager {
     
     // Interstitial Ad Management
     fun loadInterstitialAd(context: Context) {
+        // Don't load ads if user is premium
+        if (BillingManager.isPremium()) {
+            return
+        }
+        
         if (isLoadingInterstitial || interstitialAd != null) {
             return
         }
@@ -103,21 +116,70 @@ object AdManager {
     }
     
     fun showInterstitialAd(activity: Activity): Boolean {
+        return showInterstitialAd(activity = activity, onFinished = null)
+    }
+
+    /**
+     * Shows an interstitial (if allowed + loaded) and invokes [onFinished] when the ad flow is done
+     * (dismissed or failed to show). If the ad is not shown for any reason, [onFinished] is invoked
+     * immediately.
+     */
+    fun showInterstitialAd(activity: Activity, onFinished: (() -> Unit)?): Boolean {
+        // Don't show ads if user is premium
+        if (BillingManager.isPremium()) {
+            onFinished?.invoke()
+            return false
+        }
+
         // Check frequency capping
         if (!shouldShowInterstitial()) {
+            onFinished?.invoke()
             return false
         }
-        
+
         val ad = interstitialAd
-        if (ad != null) {
-            ad.show(activity)
-            updateInterstitialShown()
-            return true
-        } else {
+        if (ad == null) {
             // Preload for next time
             loadInterstitialAd(activity)
+            onFinished?.invoke()
             return false
         }
+
+        val finished = AtomicBoolean(false)
+        fun finishOnce() {
+            if (finished.compareAndSet(false, true)) {
+                onFinished?.invoke()
+            }
+        }
+
+        // Override callback for this show so we can notify the caller, while preserving the existing
+        // behavior of clearing + preloading.
+        ad.fullScreenContentCallback =
+            object : FullScreenContentCallback() {
+                override fun onAdDismissedFullScreenContent() {
+                    Log.d(TAG, "Interstitial ad dismissed")
+                    interstitialAd = null
+                    finishOnce()
+                    // Preload next ad
+                    loadInterstitialAd(activity)
+                }
+
+                override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                    Log.e(TAG, "Interstitial ad failed to show: ${error.message}")
+                    interstitialAd = null
+                    finishOnce()
+                    loadInterstitialAd(activity)
+                }
+
+                override fun onAdShowedFullScreenContent() {
+                    Log.d(TAG, "Interstitial ad showed")
+                    sessionInterstitialCount++
+                }
+            }
+
+        ad.show(activity)
+        updateInterstitialShown()
+        return true
     }
     
     private fun shouldShowInterstitial(): Boolean {

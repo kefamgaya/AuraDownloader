@@ -10,11 +10,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import gain.aura.App.Companion.isFDroidBuild
+import gain.aura.billing.BillingManager
 
 @Composable
 fun BannerAdView(
@@ -22,6 +25,12 @@ fun BannerAdView(
     adUnitId: String = AdManager.getBannerAdUnitId(),
 ) {
     if (isFDroidBuild()) {
+        return
+    }
+    
+    // Don't show ads if user is premium
+    val isPremium by BillingManager.isPremium.collectAsState()
+    if (isPremium) {
         return
     }
     

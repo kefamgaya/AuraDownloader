@@ -39,7 +39,7 @@ import gain.aura.util.UpdateUtil
 import gain.aura.util.VIDEO_DIRECTORY
 import gain.aura.util.YT_DLP_VERSION
 import com.tencent.mmkv.MMKV
-import com.yausername.aria2c.Aria2c
+// import com.yausername.aria2c.Aria2c  // Removed to save ~4MB APK size
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import java.io.File
@@ -86,6 +86,11 @@ class App : Application() {
         clipboard = getSystemService()!!
         connectivityManager = getSystemService()!!
 
+        // Initialize Billing (must be before AdMob to check premium status)
+        if (!isFDroidBuild()) {
+            gain.aura.billing.BillingManager.initialize(this)
+        }
+        
         // Initialize AdMob
         if (!isFDroidBuild()) {
             gain.aura.ads.AdManager.initialize(this)
@@ -95,7 +100,7 @@ class App : Application() {
             try {
                 YoutubeDL.init(this@App)
                 FFmpeg.init(this@App)
-                Aria2c.init(this@App)
+                // Aria2c.init(this@App)  // Disabled to save ~4MB APK size
                 DownloadUtil.getCookiesContentFromDatabase().getOrNull()?.let {
                     FileUtil.writeContentToFile(it, getCookiesFile())
                 }
@@ -105,6 +110,7 @@ class App : Application() {
             }
         }
 
+        // Scoped storage: use app-owned directory for yt-dlp output; export to MediaStore on completion.
         videoDownloadDir = VIDEO_DIRECTORY.getString(getExternalDownloadDirectory().absolutePath)
 
         audioDownloadDir = AUDIO_DIRECTORY.getString(File(videoDownloadDir, "Audio").absolutePath)
@@ -175,19 +181,21 @@ class App : Application() {
         fun updateDownloadDir(uri: Uri, directoryType: Directory) {
             when (directoryType) {
                 Directory.AUDIO -> {
-                    val path = FileUtil.getRealPath(uri)
-                    audioDownloadDir = path
+                    // Scoped storage: don't resolve tree URIs into raw filesystem paths.
+                    // Keep yt-dlp output in app-owned directory.
+                    val path = audioDownloadDir
                     PreferenceUtil.encodeString(AUDIO_DIRECTORY, path)
                 }
 
                 Directory.VIDEO -> {
-                    val path = FileUtil.getRealPath(uri)
-                    videoDownloadDir = path
+                    // Scoped storage: don't resolve tree URIs into raw filesystem paths.
+                    // Keep yt-dlp output in app-owned directory.
+                    val path = videoDownloadDir
                     PreferenceUtil.encodeString(VIDEO_DIRECTORY, path)
                 }
 
                 Directory.CUSTOM_COMMAND -> {
-                    val path = FileUtil.getRealPath(uri)
+                    // Intentionally left unchanged for now.
                 }
 
                 Directory.SDCARD -> {

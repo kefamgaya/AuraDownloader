@@ -43,14 +43,14 @@ android {
         applicationId = "gain.aura"
         minSdk = 24
         targetSdk = 36
-        versionCode = 8
+        versionCode = 11
         versionName = "2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
-        // Only include arm64-v8a for smallest Play Store size (covers ~95% of active devices)
+        // Include all ABIs for universal builds
         ndk {
-            abiFilters.addAll(listOf("arm64-v8a"))
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
     }
 
@@ -58,7 +58,7 @@ android {
     bundle {
         language {
             enableSplit = true
-        }
+                }
         density {
             enableSplit = true
         }
@@ -145,7 +145,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlinOptions { freeCompilerArgs = freeCompilerArgs + "-opt-in=kotlin.RequiresOptIn" }
+    kotlinOptions { 
+        freeCompilerArgs = freeCompilerArgs + listOf(
+            "-opt-in=kotlin.RequiresOptIn",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
+        )
+    }
 
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
@@ -191,11 +196,55 @@ dependencies {
     // AdMob
     implementation("com.google.android.gms:play-services-ads:23.5.0")
     
-    // Play Billing Library (required for BILLING permission)
-    implementation("com.android.billingclient:billing-ktx:7.1.1")
+    // Play Billing Library (latest version with latest APIs)
+    implementation("com.android.billingclient:billing-ktx:8.2.1")
+    
+    // Play Core for In-App Updates (native Google Play update dialog)
+    implementation("com.google.android.play:app-update:2.1.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
 
     testImplementation(libs.junit4)
     androidTestImplementation(libs.androidx.test.ext)
     androidTestImplementation(libs.androidx.test.espresso.core)
     implementation(libs.androidx.compose.ui.tooling)
+}
+
+// --- 16KB memory page size support (Android 15+) ---
+// Google Play checks native ELF PT_LOAD alignment (p_align). Many third-party prebuilt .so ship with 4KB (0x1000)
+// alignment and fail the 16KB page-size requirement. As a mitigation, we patch merged native libraries *inside*
+// the AGP merge task, so downstream tasks (strip/package/bundle) observe the patched outputs.
+tasks.matching { it.name == "mergeGenericReleaseNativeLibs" }.configureEach {
+    doLast {
+        val libDir =
+            layout.buildDirectory
+                .dir(
+                    "intermediates/merged_native_libs/genericRelease/mergeGenericReleaseNativeLibs/out/lib"
+                )
+                .get()
+                .asFile
+
+        if (!libDir.exists()) return@doLast
+
+        fileTree(libDir).matching { include("**/*.so") }.files.forEach { so ->
+            // Some dependencies ship helper files with a ".so" suffix (e.g. "*.zip.so") that are NOT ELF.
+            // Only patch real ELF binaries.
+            val header = runCatching { so.inputStream().use { it.readNBytes(4) } }.getOrNull() ?: return@forEach
+            val isElf =
+                header.size == 4 &&
+                    header[0] == 0x7F.toByte() &&
+                    header[1] == 'E'.code.toByte() &&
+                    header[2] == 'L'.code.toByte() &&
+                    header[3] == 'F'.code.toByte()
+            if (!isElf) return@forEach
+
+            runCatching {
+                    project.exec {
+                        commandLine("patchelf", "--page-size", "16384", so.absolutePath)
+                    }
+                }
+                .onFailure { e ->
+                    throw GradleException("patchelf failed for ${so.absolutePath}", e)
+                }
+        }
+    }
 }

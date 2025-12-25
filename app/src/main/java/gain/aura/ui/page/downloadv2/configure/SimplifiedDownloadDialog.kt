@@ -96,6 +96,7 @@ fun SimplifiedDownloadDialog(
     var showMoreFormats by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
+    var isStartingDownload by remember { mutableStateOf(false) }
     
     // Track ad loading state - allow download after 10 seconds timeout even if ad fails (skip for F-Droid builds)
     var isAdReady by remember { mutableStateOf(isFDroidBuild()) }
@@ -551,31 +552,50 @@ fun SimplifiedDownloadDialog(
             item {
                 Button(
                     onClick = {
+                        if (isStartingDownload) return@Button
+                        isStartingDownload = true
+
                         val format = getSelectedFormat()
                         val extractAudio = selectedOption is DownloadOption.AudioFast || 
                                           selectedOption is DownloadOption.AudioClassic ||
                                           (selectedOption is DownloadOption.CustomFormat && 
                                            (selectedOption as DownloadOption.CustomFormat).format.isAudioOnly())
                         
-                        // Show interstitial ad before starting download (skip for F-Droid builds)
-                        if (!isFDroidBuild()) {
-                            val activity = context as? Activity
-                            activity?.let { AdManager.showInterstitialAd(it) }
+                        fun startDownloadAndClose() {
+                            downloadWithFormat(videoInfo, format, downloader, extractAudio)
+                            onDismissRequest()
+                            onDownloadStarted()
                         }
-                        
-                        // Start download (ad will be dismissed by user, download continues)
-                        downloadWithFormat(videoInfo, format, downloader, extractAudio)
-                        onDismissRequest()
-                        onDownloadStarted()
+
+                        // Show interstitial after user clicks download.
+                        // If ad isn't available (or timeout path), proceed immediately.
+                        if (!isFDroidBuild() && !adLoadTimeout && AdManager.isInterstitialAdLoaded()) {
+                            val activity = context as? Activity
+                            if (activity != null) {
+                                val shown =
+                                    AdManager.showInterstitialAd(activity) {
+                                        startDownloadAndClose()
+                                    }
+                                if (!shown) {
+                                    startDownloadAndClose()
+                                }
+                            } else {
+                                startDownloadAndClose()
+                            }
+                        } else {
+                            startDownloadAndClose()
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = selectedOption != null && isAdReady,
+                    enabled = selectedOption != null && isAdReady && !isStartingDownload,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                     ),
                 ) {
-                    if (!isAdReady) {
-                        Text("Loading...")
+                    if (isStartingDownload) {
+                        Text(stringResource(R.string.loading))
+                    } else if (!isAdReady) {
+                        Text(stringResource(R.string.loading))
                     } else {
                         Text(stringResource(R.string.download))
                     }

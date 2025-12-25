@@ -3,9 +3,10 @@ package gain.aura
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import gain.aura.App.Companion.context
@@ -14,6 +15,7 @@ import gain.aura.ui.common.SettingsProvider
 import gain.aura.ui.page.AppEntry
 import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel
 import gain.aura.ui.theme.SealTheme
+import gain.aura.update.InAppUpdateManager
 import gain.aura.util.PreferenceUtil
 import gain.aura.util.ToastUtil
 import gain.aura.util.matchUrlFromSharedText
@@ -23,8 +25,9 @@ import kotlinx.coroutines.runBlocking
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.compose.KoinContext
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
     private val dialogViewModel: DownloadDialogViewModel by viewModel()
+    private var inAppUpdateManager: InAppUpdateManager? = null
 
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,6 +39,12 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
 
         context = this.baseContext
+        
+        // Initialize Google Play In-App Updates (only for Play Store builds)
+        if (!App.isFDroidBuild()) {
+            initializeInAppUpdates()
+        }
+        
         setContent {
             KoinContext {
                 val windowSizeClass = calculateWindowSizeClass(this)
@@ -48,6 +57,17 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+    
+    private fun initializeInAppUpdates() {
+        try {
+            inAppUpdateManager = InAppUpdateManager(this)
+            // Check for updates when app starts
+            inAppUpdateManager?.checkForUpdate()
+            Log.d(TAG, "In-App Update Manager initialized")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize In-App Updates", e)
         }
     }
 

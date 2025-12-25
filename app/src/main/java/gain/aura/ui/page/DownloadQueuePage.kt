@@ -11,6 +11,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,7 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -36,7 +41,9 @@ import gain.aura.download.DownloaderV2
 import gain.aura.ui.common.Route
 import gain.aura.ui.page.downloadv2.DownloadPageV2
 import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel
+import gain.aura.ui.page.settings.premium.PremiumPurchaseDialog
 import gain.aura.ads.BannerAdView
+import gain.aura.billing.BillingManager
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,6 +61,8 @@ fun DownloadQueuePage(
     val isDownloadQueueSelected = currentRoute == Route.DOWNLOAD_QUEUE
     val darkThemePreference = LocalDarkTheme.current
     val isDarkTheme = darkThemePreference.isDarkTheme()
+    val isPremium by BillingManager.isPremium.collectAsState()
+    var showPremiumDialog by remember { mutableStateOf(false) }
     
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
         rememberTopAppBarState(),
@@ -74,6 +83,19 @@ fun DownloadQueuePage(
                     scrollBehavior = scrollBehavior,
                     expandedHeight = TopAppBarDefaults.LargeAppBarExpandedHeight + 24.dp,
                     actions = {
+                        IconButton(
+                            onClick = {
+                                if (!isPremium) {
+                                    showPremiumDialog = true
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Star,
+                                contentDescription = stringResource(R.string.premium_status),
+                                tint = if (isPremium) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                         IconButton(
                             onClick = {
                                 val newTheme = if (isDarkTheme) {
@@ -146,6 +168,12 @@ fun DownloadQueuePage(
                 downloader = downloader,
             )
             BannerAdView()
+        }
+        
+        if (showPremiumDialog) {
+            PremiumPurchaseDialog(
+                onDismissRequest = { showPremiumDialog = false }
+            )
         }
     }
 }

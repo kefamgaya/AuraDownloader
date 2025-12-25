@@ -29,6 +29,7 @@ import gain.aura.util.FileUtil.getExternalTempDir
 import gain.aura.util.FileUtil.getFileName
 import gain.aura.util.FileUtil.getSdcardTempDir
 import gain.aura.util.FileUtil.moveFilesToSdcard
+import gain.aura.util.FileUtil.exportToMediaStoreDownloads
 import gain.aura.util.PreferenceUtil.COOKIE_HEADER
 import gain.aura.util.PreferenceUtil.getBoolean
 import gain.aura.util.PreferenceUtil.getInt
@@ -854,21 +855,34 @@ object DownloadUtil {
                         }
                     }
             } else {
-                FileUtil.scanFileToMediaLibraryPostDownload(
-                        title = fileName,
-                        downloadDir = downloadPath,
-                    )
-                    .run {
-                        if (privateMode) Result.success(emptyList())
-                        else
-                            Result.success(
-                                if (splitByChapter) {
-                                    insertSplitChapterIntoHistory(videoInfo, this)
-                                } else {
-                                    insertInfoIntoDownloadHistory(videoInfo, this)
-                                }
-                            )
+                // Scoped storage compliant:
+                // yt-dlp writes into app-owned directory; then export resulting files into MediaStore Downloads.
+                val producedFiles =
+                    java.io.File(downloadPath)
+                        .walkTopDown()
+                        .filter { it.isFile && it.absolutePath.contains(fileName) }
+                        .toList()
+                        .filterNot {
+                            it.absolutePath.contains(Regex(THUMBNAIL_REGEX)) ||
+                                it.absolutePath.contains(Regex(SUBTITLE_REGEX))
+                        }
+
+                val exported =
+                    producedFiles.mapNotNull { f ->
+                        exportToMediaStoreDownloads(f, subDir = "Aura")?.also {
+                            runCatching { f.delete() }
+                        }
                     }
+
+                if (privateMode) Result.success(emptyList())
+                else
+                    Result.success(
+                        if (splitByChapter) {
+                            insertSplitChapterIntoHistory(videoInfo, exported)
+                        } else {
+                            insertInfoIntoDownloadHistory(videoInfo, exported)
+                        }
+                    )
             }
         }
 

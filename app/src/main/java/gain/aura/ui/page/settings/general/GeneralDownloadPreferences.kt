@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.RemoveDone
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +33,8 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,10 +50,13 @@ import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.rememberPermissionState
 import gain.aura.App
 import gain.aura.R
+import gain.aura.billing.BillingManager
 import gain.aura.ui.common.booleanState
 import gain.aura.ui.component.BackButton
+import gain.aura.ui.component.PreferenceItem
 import gain.aura.ui.component.PreferenceSwitch
 import gain.aura.ui.page.download.NotificationPermissionDialog
+import gain.aura.ui.page.settings.premium.PremiumPurchaseDialog
 import gain.aura.util.CONFIGURE
 import gain.aura.util.NOTIFICATION
 import gain.aura.util.NotificationUtil
@@ -73,6 +79,27 @@ fun GeneralDownloadPreferences(onNavigateBack: () -> Unit) {
     }
 
     var showNotificationDialog by remember { mutableStateOf(false) }
+    var showPremiumDialog by remember { mutableStateOf(false) }
+    val isPremium by BillingManager.isPremium.collectAsState()
+    val restoreResult by BillingManager.restoreResult.collectAsState()
+
+    // Handle restore result
+    LaunchedEffect(restoreResult) {
+        val currentRestoreResult = restoreResult
+        when (currentRestoreResult) {
+            is BillingManager.RestoreResult.Success -> {
+                if (currentRestoreResult.restored) {
+                    ToastUtil.makeToast(context.getString(R.string.premium_restored))
+                } else {
+                    ToastUtil.makeToast(context.getString(R.string.no_purchases_found))
+                }
+            }
+            is BillingManager.RestoreResult.Error -> {
+                ToastUtil.makeToast(context.getString(R.string.restore_error, currentRestoreResult.message))
+            }
+            null -> {}
+        }
+    }
 
     val notificationPermission =
         if (Build.VERSION.SDK_INT >= 33)
@@ -100,6 +127,30 @@ fun GeneralDownloadPreferences(onNavigateBack: () -> Unit) {
         },
         content = {
             LazyColumn(modifier = Modifier, contentPadding = it) {
+                item {
+                    PreferenceItem(
+                        title = stringResource(R.string.premium_status),
+                        description = if (isPremium) stringResource(R.string.premium_active) else stringResource(R.string.upgrade_to_premium),
+                        icon = Icons.Outlined.Star,
+                        onClick = {
+                            showPremiumDialog = true
+                        },
+                    )
+                }
+                
+                if (!isPremium) {
+                    item {
+                        PreferenceItem(
+                            title = stringResource(R.string.restore_purchases),
+                            description = stringResource(R.string.restore_purchases_desc),
+                            icon = Icons.Outlined.Star,
+                            onClick = {
+                                BillingManager.restorePurchases(context)
+                            },
+                        )
+                    }
+                }
+                
                 item {
                     PreferenceSwitch(
                         title = stringResource(id = R.string.download_notification),
@@ -169,6 +220,12 @@ fun GeneralDownloadPreferences(onNavigateBack: () -> Unit) {
                 NOTIFICATION.updateBoolean(true)
                 downloadNotification = true
             },
+        )
+    }
+    
+    if (showPremiumDialog) {
+        PremiumPurchaseDialog(
+            onDismissRequest = { showPremiumDialog = false }
         )
     }
 }

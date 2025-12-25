@@ -6,6 +6,8 @@ import android.content.Intent
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Environment
+import android.provider.MediaStore
+import android.content.ContentValues
 import android.provider.DocumentsContract
 import android.util.Log
 import android.webkit.MimeTypeMap
@@ -15,6 +17,7 @@ import androidx.documentfile.provider.DocumentFile
 import gain.aura.App.Companion.context
 import gain.aura.R
 import java.io.File
+import java.io.InputStream
 import okhttp3.internal.closeQuietly
 
 const val AUDIO_REGEX = "(mp3|aac|opus|m4a)$"
@@ -195,14 +198,13 @@ object FileUtil {
     fun Context.getInternalTempDir() = File(filesDir, "tmp")
 
     internal fun getExternalDownloadDirectory() =
-        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Aura")
-            .also { it.mkdir() }
+        (context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir)
+            .resolve("Aura")
+            .also { it.mkdirs() }
 
     internal fun getExternalPrivateDownloadDirectory() =
-        File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            PRIVATE_DIRECTORY_SUFFIX,
-        )
+        (context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir)
+            .resolve(PRIVATE_DIRECTORY_SUFFIX)
 
     fun File.createEmptyFile(fileName: String): Result<File> =
         this.runCatching {
@@ -220,9 +222,55 @@ object FileUtil {
             ToastUtil.makeToast("This directory is not supported")
             return getExternalDownloadDirectory().absolutePath
         }
-        val last: String = path.split("primary:").last()
-        return Environment.getExternalStorageDirectory().absolutePath + "/$last"
+        // Scoped storage: do not attempt to resolve tree URIs into raw filesystem paths.
+        // Return app-owned download directory instead.
+        return getExternalDownloadDirectory().absolutePath
     }
 
     private const val TAG = "FileUtil"
+
+    /**
+     * Exports a file into user-visible Downloads via MediaStore (scoped storage compliant).
+     * Returns the content URI string on success, or null on failure.
+     */
+    fun exportToMediaStoreDownloads(file: File, subDir: String = "Aura"): String? {
+        return runCatching {
+                val ext = file.extension.lowercase()
+                val mimeType =
+                    MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+
+                val values =
+                    ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+                        put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                        if (android.os.Build.VERSION.SDK_INT >= 29) {
+                            put(
+                                MediaStore.MediaColumns.RELATIVE_PATH,
+                                Environment.DIRECTORY_DOWNLOADS + "/$subDir",
+                            )
+                            put(MediaStore.MediaColumns.IS_PENDING, 1)
+                        }
+                    }
+
+                val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                val uri = context.contentResolver.insert(collection, values) ?: return null
+
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    file.inputStream().use { input ->
+                        input.copyTo(out)
+                    }
+                } ?: return null
+
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }.also {
+                        context.contentResolver.update(uri, it, null, null)
+                    }
+                } else {
+                    MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null, null)
+                }
+
+                uri.toString()
+            }
+            .getOrNull()
+    }
 }

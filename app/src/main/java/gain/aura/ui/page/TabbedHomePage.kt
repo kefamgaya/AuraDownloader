@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,8 +34,12 @@ import gain.aura.util.DarkThemePreference
 import gain.aura.util.PreferenceUtil
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,8 +51,10 @@ import gain.aura.ui.common.Route
 import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel
 import gain.aura.ui.page.downloadv2.configure.DownloadDialogViewModel.Action
 import gain.aura.ui.page.downloadv2.configure.SimplifiedDownloadDialog
+import gain.aura.ui.page.settings.premium.PremiumPurchaseDialog
 import gain.aura.util.ToastUtil
 import gain.aura.ads.BannerAdView
+import gain.aura.billing.BillingManager
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -69,6 +76,8 @@ fun TabbedHomePage(
     val isHomeSelected = currentRoute == Route.HOME
     val darkThemePreference = LocalDarkTheme.current
     val isDarkTheme = darkThemePreference.isDarkTheme()
+    val isPremium by BillingManager.isPremium.collectAsState()
+    var showPremiumDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -79,6 +88,19 @@ fun TabbedHomePage(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
                 actions = {
+                    IconButton(
+                        onClick = {
+                            if (!isPremium) {
+                                showPremiumDialog = true
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Star,
+                            contentDescription = stringResource(R.string.premium_status),
+                            tint = if (isPremium) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                     IconButton(
                         onClick = {
                             val newTheme = if (isDarkTheme) {
@@ -208,6 +230,12 @@ fun TabbedHomePage(
                 }
             }
             else -> {}
+        }
+        
+        if (showPremiumDialog) {
+            PremiumPurchaseDialog(
+                onDismissRequest = { showPremiumDialog = false }
+            )
         }
     }
 }
