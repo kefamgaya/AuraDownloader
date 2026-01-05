@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.IBinder
 import androidx.core.content.getSystemService
 import com.google.android.material.color.DynamicColors
@@ -23,7 +24,6 @@ import gain.aura.ui.page.settings.directory.Directory
 import gain.aura.ui.page.settings.network.CookiesViewModel
 import gain.aura.ui.page.videolist.VideoListViewModel
 import gain.aura.util.AUDIO_DIRECTORY
-import gain.aura.util.COMMAND_DIRECTORY
 import gain.aura.util.DownloadUtil
 import gain.aura.util.FileUtil
 import gain.aura.util.FileUtil.createEmptyFile
@@ -110,12 +110,28 @@ class App : Application() {
             }
         }
 
-        // Scoped storage: use app-owned directory for yt-dlp output; export to MediaStore on completion.
-        videoDownloadDir = VIDEO_DIRECTORY.getString(getExternalDownloadDirectory().absolutePath)
-
-        audioDownloadDir = AUDIO_DIRECTORY.getString(File(videoDownloadDir, "Audio").absolutePath)
-        if (!PreferenceUtil.containsKey(COMMAND_DIRECTORY)) {
-            COMMAND_DIRECTORY.updateString(videoDownloadDir)
+        // Fixed download directory - users cannot modify
+        // Note: On Android 10+, files are accessed via MediaStore API, not direct paths
+        // This path is used for display purposes and as fallback for older Android versions
+        videoDownloadDir = if (Build.VERSION.SDK_INT >= 29) {
+            // On Android 10+, use MediaStore - path is informational only
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                .resolve("Aura").absolutePath
+        } else {
+            "/storage/emulated/0/Download/Aura"
+        }
+        audioDownloadDir = if (Build.VERSION.SDK_INT >= 29) {
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                .resolve("Aura/Audio").absolutePath
+        } else {
+            "/storage/emulated/0/Download/Aura/Audio"
+        }
+        
+        // Only create directories on Android 9 and below
+        // On Android 10+, MediaStore handles file placement
+        if (Build.VERSION.SDK_INT < 29) {
+            File(videoDownloadDir).mkdirs()
+            File(audioDownloadDir).mkdirs()
         }
         if (Build.VERSION.SDK_INT >= 26) NotificationUtil.createNotificationChannel()
 
@@ -179,34 +195,8 @@ class App : Application() {
                 }
 
         fun updateDownloadDir(uri: Uri, directoryType: Directory) {
-            when (directoryType) {
-                Directory.AUDIO -> {
-                    // Scoped storage: don't resolve tree URIs into raw filesystem paths.
-                    // Keep yt-dlp output in app-owned directory.
-                    val path = audioDownloadDir
-                    PreferenceUtil.encodeString(AUDIO_DIRECTORY, path)
-                }
-
-                Directory.VIDEO -> {
-                    // Scoped storage: don't resolve tree URIs into raw filesystem paths.
-                    // Keep yt-dlp output in app-owned directory.
-                    val path = videoDownloadDir
-                    PreferenceUtil.encodeString(VIDEO_DIRECTORY, path)
-                }
-
-                Directory.CUSTOM_COMMAND -> {
-                    // Intentionally left unchanged for now.
-                }
-
-                Directory.SDCARD -> {
-                    context.contentResolver?.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                    )
-                    PreferenceUtil.encodeString(SDCARD_URI, uri.toString())
-                }
-            }
+            // Download directory is fixed and cannot be modified by users
+            // This function is kept for compatibility but does nothing
         }
 
         fun getVersionReport(): String {

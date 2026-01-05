@@ -10,7 +10,9 @@ import gain.aura.database.backup.BackupUtil
 import gain.aura.database.backup.BackupUtil.decodeToBackup
 import gain.aura.database.objects.DownloadedVideoInfo
 import gain.aura.util.DatabaseUtil
+import gain.aura.util.FileUtil
 import gain.aura.util.FileUtil.getFileSize
+import gain.aura.util.FileUtil.scanAndImportVideosFromDownloadsAura
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +63,27 @@ class VideoListViewModel : ViewModel() {
         videoListFlow.flowOn(Dispatchers.IO).map { list ->
             list.associate { it.id to it.videoPath.getFileSize() }
         }
+
+    init {
+        // Automatically scan and import videos from Downloads/Aura on initialization
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val importedCount = scanAndImportVideosFromDownloadsAura()
+                if (importedCount > 0) {
+                    android.util.Log.d(TAG, "Auto-imported $importedCount videos from Downloads/Aura")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error auto-importing videos", e)
+            }
+        }
+    }
+
+    fun scanAndImportVideos(onComplete: suspend (Int) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val importedCount = scanAndImportVideosFromDownloadsAura()
+            withContext(Dispatchers.Main) { onComplete(importedCount) }
+        }
+    }
 
     fun clickVideoFilter() {
         if (mutableStateFlow.value.videoFilter)

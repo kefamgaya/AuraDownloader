@@ -116,8 +116,11 @@ import gain.aura.ui.svg.DynamicColorImageVectors
 import gain.aura.ui.svg.drawablevectors.download
 import gain.aura.ui.theme.SealTheme
 import gain.aura.util.DownloadUtil
+import gain.aura.util.AUDIO_REGEX
 import gain.aura.util.FileUtil
+import gain.aura.util.VIDEO_REGEX
 import gain.aura.util.getErrorReport
+import gain.aura.util.isVideoFile
 import gain.aura.util.makeToast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -370,7 +373,7 @@ fun DownloadPageImplV2(
                 else HeaderSpacingDp.dp.toPx()
             }
         var headerOffset by remember { mutableFloatStateOf(spacerHeight) }
-        var isGridView by rememberSaveable { mutableStateOf(true) }
+        var isGridView by rememberSaveable { mutableStateOf(false) }
 
         Column(
             modifier =
@@ -394,7 +397,7 @@ fun DownloadPageImplV2(
                     SelectionGroupRow(
                         modifier =
                             Modifier.horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                                .padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 8.dp)
                     ) {
                         Filter.entries.forEach { filter ->
                             SelectionGroupItem(
@@ -461,7 +464,7 @@ fun DownloadPageImplV2(
                     if (isGridView) {
                         items(
                             items =
-                                filteredMap.toList().sortedBy { (_, state) -> state.downloadState },
+                                filteredMap.toList().sortedByDescending { (task, _) -> task.timeCreated },
                             key = { (task, _) -> task.id },
                         ) { (task, state) ->
                             with(state.viewState) {
@@ -483,13 +486,20 @@ fun DownloadPageImplV2(
                                         )
                                     },
                                     onButtonClick = { showActionSheet(task) },
+                                    onClick = if (state.downloadState is Task.DownloadState.Completed && 
+                                                  state.downloadState.filePath != null) {
+                                        // Check if it's a video file (not audio) - use proper file extension check
+                                        if (isVideoFile(state.downloadState.filePath)) {
+                                            { onActionPost(task, UiAction.OpenFile(state.downloadState.filePath)) }
+                                        } else null
+                                    } else null,
                                 )
                             }
                         }
                     } else {
                         items(
                             items =
-                                filteredMap.toList().sortedBy { (_, state) -> state.downloadState },
+                                filteredMap.toList().sortedByDescending { (task, _) -> task.timeCreated },
                             key = { (task, _) -> task.id },
                             span = { GridItemSpan(maxLineSpan) },
                         ) { (task, state) ->
@@ -503,6 +513,13 @@ fun DownloadPageImplV2(
                                     )
                                 },
                                 onButtonClick = { showActionSheet(task) },
+                                onClick = if (state.downloadState is Task.DownloadState.Completed && 
+                                              state.downloadState.filePath != null) {
+                                    // Check if it's a video file (not audio) - use proper file extension check
+                                    if (isVideoFile(state.downloadState.filePath)) {
+                                        { onActionPost(task, UiAction.OpenFile(state.downloadState.filePath)) }
+                                    } else null
+                                } else null,
                             )
                         }
                     }

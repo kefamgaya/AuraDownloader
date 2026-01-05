@@ -43,12 +43,13 @@ android {
         applicationId = "gain.aura"
         minSdk = 24
         targetSdk = 36
-        versionCode = 11
-        versionName = "2.1"
+        versionCode = 13
+        versionName = "2.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
         // Include all ABIs for universal builds
+        // Play Store will split by ABI automatically via AAB
         ndk {
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
@@ -78,17 +79,21 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Enable code optimization and obfuscation for smaller APK size
+            isDebuggable = false
+            // Enable more aggressive resource shrinking
+            multiDexEnabled = false
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("githubPublish")
+            } else {
+                // Use debug signing if no keystore is configured
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
         debug {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            // Disable minify for faster debug builds
+            isMinifyEnabled = false
+            isShrinkResources = false
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("githubPublish")
             }
@@ -153,8 +158,19 @@ android {
     }
 
     packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-        jniLibs.useLegacyPackaging = true
+        resources { 
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Exclude unnecessary files to reduce size
+            excludes += "/META-INF/*.kotlin_module"
+            excludes += "/META-INF/*.version"
+            excludes += "/META-INF/proguard/*"
+            excludes += "/META-INF/services/*"
+            excludes += "/kotlin/**"
+            excludes += "/okhttp3/**"
+        }
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     androidResources { generateLocaleConfig = true }
 
@@ -202,6 +218,11 @@ dependencies {
     // Play Core for In-App Updates (native Google Play update dialog)
     implementation("com.google.android.play:app-update:2.1.0")
     implementation("com.google.android.play:app-update-ktx:2.1.0")
+
+    // ExoPlayer/Media3 for video playback
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-common:1.4.1")
 
     testImplementation(libs.junit4)
     androidTestImplementation(libs.androidx.test.ext)

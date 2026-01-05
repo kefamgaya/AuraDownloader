@@ -1,15 +1,7 @@
-@file:OptIn(ExperimentalPermissionsApi::class)
-
 package gain.aura.ui.page.settings.directory
 
-import android.Manifest
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -70,9 +62,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.PermissionStatus
-import com.google.accompanist.permissions.rememberPermissionState
 import gain.aura.App
 import gain.aura.R
 import gain.aura.ui.common.booleanState
@@ -90,7 +79,6 @@ import gain.aura.ui.component.PreferenceSwitch
 import gain.aura.ui.component.PreferenceSwitchWithDivider
 import gain.aura.ui.component.PreferencesHintCard
 import gain.aura.ui.component.SealDialog
-import gain.aura.util.COMMAND_DIRECTORY
 import gain.aura.util.CUSTOM_COMMAND
 import gain.aura.util.CUSTOM_OUTPUT_TEMPLATE
 import gain.aura.util.DownloadUtil
@@ -105,10 +93,6 @@ import gain.aura.util.PreferenceUtil.getString
 import gain.aura.util.PreferenceUtil.updateBoolean
 import gain.aura.util.PreferenceUtil.updateString
 import gain.aura.util.RESTRICT_FILENAMES
-import gain.aura.util.SDCARD_DOWNLOAD
-import gain.aura.util.SDCARD_URI
-import gain.aura.util.SUBDIRECTORY_EXTRACTOR
-import gain.aura.util.SUBDIRECTORY_PLAYLIST_TITLE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -128,10 +112,9 @@ enum class Directory {
     AUDIO,
     VIDEO,
     SDCARD,
-    CUSTOM_COMMAND,
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
 
@@ -146,83 +129,12 @@ fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var showSubdirectoryDialog by remember { mutableStateOf(false) }
-
-    var isPrivateDirectoryEnabled by remember { mutableStateOf(PRIVATE_DIRECTORY.getBoolean()) }
-
-    var videoDirectoryText by
-        remember(isPrivateDirectoryEnabled) {
-            mutableStateOf(
-                if (!isPrivateDirectoryEnabled) App.videoDownloadDir else App.privateDownloadDir
-            )
-        }
-    var audioDirectoryText by
-        remember(isPrivateDirectoryEnabled) {
-            mutableStateOf(
-                if (!isPrivateDirectoryEnabled) App.audioDownloadDir else App.privateDownloadDir
-            )
-        }
-    var sdcardUri by remember { mutableStateOf(SDCARD_URI.getString()) }
-    var customCommandDirectory by COMMAND_DIRECTORY.stringState
-
-    var sdcardDownload by remember { mutableStateOf(SDCARD_DOWNLOAD.getBoolean()) }
-
     var showClearTempDialog by remember { mutableStateOf(false) }
-    var showCustomCommandDirectoryDialog by remember { mutableStateOf(false) }
-
-    var editingDirectory by remember { mutableStateOf(Directory.VIDEO) }
 
     val isCustomCommandEnabled by remember { mutableStateOf(CUSTOM_COMMAND.getBoolean()) }
 
     var showOutputTemplateDialog by remember { mutableStateOf(false) }
 
-    val storagePermission =
-        rememberPermissionState(permission = Manifest.permission.WRITE_EXTERNAL_STORAGE)
-
-    val launcher =
-        rememberLauncherForActivityResult(
-            object : ActivityResultContracts.OpenDocumentTree() {
-                override fun createIntent(context: Context, input: Uri?): Intent {
-                    return (super.createIntent(context, input)).apply {
-                        flags =
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                    }
-                }
-            }
-        ) {
-            it?.let { uri ->
-                App.updateDownloadDir(uri, editingDirectory)
-                if (editingDirectory != Directory.SDCARD) {
-                    val path = FileUtil.getRealPath(uri)
-                    when (editingDirectory) {
-                        Directory.AUDIO -> {
-                            audioDirectoryText = path
-                        }
-
-                        Directory.VIDEO -> {
-                            videoDirectoryText = path
-                        }
-
-                        Directory.SDCARD -> {
-                            sdcardUri = uri.toString()
-                        }
-
-                        Directory.CUSTOM_COMMAND -> {
-                            customCommandDirectory = path
-                        }
-                    }
-                }
-            }
-        }
-
-    fun openDirectoryChooser(directory: Directory = Directory.VIDEO) {
-        editingDirectory = directory
-        if (Build.VERSION.SDK_INT > 29 || storagePermission.status == PermissionStatus.Granted)
-            launcher.launch(null)
-        else storagePermission.launchPermissionRequest()
-    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -251,83 +163,25 @@ fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
             // NOTE: We intentionally do NOT request "All files access" (MANAGE_EXTERNAL_STORAGE).
             // Scoped storage compliant flows should use SAF/MediaStore.
             item { PreferenceSubtitle(text = stringResource(R.string.general_settings)) }
-            if (!isCustomCommandEnabled) {
-                item {
-                    PreferenceItem(
-                        title = stringResource(id = R.string.video_directory),
-                        description = videoDirectoryText,
-                        enabled = !isPrivateDirectoryEnabled && !sdcardDownload,
-                        icon = Icons.Outlined.VideoLibrary,
-                    ) {
-                        openDirectoryChooser(directory = Directory.VIDEO)
-                    }
-                }
-                item {
-                    PreferenceItem(
-                        title = stringResource(id = R.string.audio_directory),
-                        description = audioDirectoryText,
-                        enabled = !isPrivateDirectoryEnabled && !sdcardDownload,
-                        icon = Icons.Outlined.LibraryMusic,
-                    ) {
-                        openDirectoryChooser(directory = Directory.AUDIO)
-                    }
+            item {
+                PreferenceItem(
+                    title = stringResource(id = R.string.video_directory),
+                    description = "/storage/emulated/0/Download/Aura",
+                    enabled = false,
+                    icon = Icons.Outlined.VideoLibrary,
+                ) {
+                    // Directory is fixed and cannot be modified
                 }
             }
             item {
                 PreferenceItem(
-                    title = stringResource(id = R.string.custom_command_directory),
-                    description =
-                        customCommandDirectory.ifEmpty {
-                            stringResource(id = R.string.set_directory_desc)
-                        },
-                    icon = Icons.Outlined.Folder,
+                    title = stringResource(id = R.string.audio_directory),
+                    description = "/storage/emulated/0/Download/Aura/Audio",
+                    enabled = false,
+                    icon = Icons.Outlined.LibraryMusic,
                 ) {
-                    showCustomCommandDirectoryDialog = true
+                    // Directory is fixed and cannot be modified
                 }
-            }
-            item {
-                PreferenceSwitchWithDivider(
-                    title = stringResource(id = R.string.sdcard_directory),
-                    description =
-                        sdcardUri.ifEmpty { stringResource(id = R.string.set_directory_desc) },
-                    isChecked = sdcardDownload,
-                    enabled = !isCustomCommandEnabled,
-                    isSwitchEnabled = !isCustomCommandEnabled,
-                    onChecked = {
-                        if (sdcardUri.isNotEmpty()) {
-                            sdcardDownload = !sdcardDownload
-                            PreferenceUtil.updateValue(SDCARD_DOWNLOAD, sdcardDownload)
-                        } else {
-                            openDirectoryChooser(Directory.SDCARD)
-                        }
-                    },
-                    icon = Icons.Outlined.SdCard,
-                    onClick = { openDirectoryChooser(Directory.SDCARD) },
-                )
-            }
-            item {
-                PreferenceItem(
-                    title = stringResource(id = R.string.subdirectory),
-                    description = stringResource(id = R.string.subdirectory_desc),
-                    icon = Icons.Outlined.SnippetFolder,
-                    enabled = !isCustomCommandEnabled && !sdcardDownload,
-                ) {
-                    showSubdirectoryDialog = true
-                }
-            }
-            item { PreferenceSubtitle(text = stringResource(R.string.privacy)) }
-            item {
-                PreferenceSwitch(
-                    title = stringResource(id = R.string.private_directory),
-                    description = stringResource(R.string.private_directory_desc),
-                    icon = Icons.Outlined.TabUnselected,
-                    enabled = !sdcardDownload && !isCustomCommandEnabled,
-                    isChecked = isPrivateDirectoryEnabled,
-                    onClick = {
-                        isPrivateDirectoryEnabled = !isPrivateDirectoryEnabled
-                        PreferenceUtil.updateValue(PRIVATE_DIRECTORY, isPrivateDirectoryEnabled)
-                    },
-                )
             }
             item { PreferenceSubtitle(text = stringResource(R.string.advanced_settings)) }
             item {
@@ -335,7 +189,7 @@ fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
                     title = stringResource(R.string.output_template),
                     description = stringResource(id = R.string.output_template_desc),
                     icon = Icons.Outlined.FolderSpecial,
-                    enabled = !isCustomCommandEnabled && !sdcardDownload,
+                    enabled = !isCustomCommandEnabled,
                     onClick = { showOutputTemplateDialog = true },
                 )
             }
@@ -412,67 +266,6 @@ fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
                 OUTPUT_TEMPLATE.updateString(selected)
                 CUSTOM_OUTPUT_TEMPLATE.updateString(custom)
                 showOutputTemplateDialog = false
-            },
-        )
-    }
-    if (showCustomCommandDirectoryDialog) {
-        AlertDialog(
-            onDismissRequest = { showCustomCommandDirectoryDialog = false },
-            icon = { Icon(imageVector = Icons.Outlined.Folder, contentDescription = null) },
-            title = {
-                Text(
-                    text = stringResource(id = R.string.custom_command_directory),
-                    textAlign = TextAlign.Center,
-                )
-            },
-            confirmButton = {
-                ConfirmButton {
-                    COMMAND_DIRECTORY.updateString(customCommandDirectory)
-                    showCustomCommandDirectoryDialog = false
-                }
-            },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                        text = stringResource(R.string.custom_command_directory_desc),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    OutlinedTextField(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        value = customCommandDirectory,
-                        onValueChange = { customCommandDirectory = it },
-                        leadingIcon = { Text(text = "-P", fontFamily = FontFamily.Monospace) },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    )
-                    Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        OutlinedButtonChip(
-                            modifier = Modifier.padding(end = 8.dp),
-                            label = stringResource(id = R.string.folder_picker),
-                            icon = Icons.Outlined.FolderOpen,
-                        ) {
-                            openDirectoryChooser(Directory.CUSTOM_COMMAND)
-                        }
-                        OutlinedButtonChip(
-                            label = stringResource(R.string.yt_dlp_docs),
-                            icon = Icons.AutoMirrored.Outlined.OpenInNew,
-                        ) {
-                            uriHandler.openUri(ytdlpFilesystemReference)
-                        }
-                    }
-                }
-            },
-            dismissButton = { DismissButton { showCustomCommandDirectoryDialog = false } },
-        )
-    }
-    if (showSubdirectoryDialog) {
-        DirectoryPreferenceDialog(
-            onDismissRequest = { showSubdirectoryDialog = false },
-            isWebsiteSelected = SUBDIRECTORY_EXTRACTOR.getBoolean(),
-            isPlaylistTitleSelected = SUBDIRECTORY_PLAYLIST_TITLE.getBoolean(),
-            onConfirm = { isWebsiteSelected, isPlaylistTitleSelected ->
-                SUBDIRECTORY_EXTRACTOR.updateBoolean(isWebsiteSelected)
-                SUBDIRECTORY_PLAYLIST_TITLE.updateBoolean(isPlaylistTitleSelected)
             },
         )
     }

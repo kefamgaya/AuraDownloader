@@ -128,7 +128,9 @@ fun AppearancePreferences(onNavigateBack: () -> Unit, onNavigateTo: (String) -> 
                     actionButton = {
                         ActionButton(modifier = Modifier, downloadState = downloadState) {}
                     },
-                ) {}
+                    onButtonClick = {},
+                    onClick = null,
+                )
                 val pageCount = ColorList.size + 1
 
                 val pagerState =

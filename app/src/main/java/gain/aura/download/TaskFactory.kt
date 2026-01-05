@@ -37,15 +37,27 @@ object TaskFactory {
 
         val audioOnlyFormats = formatList.filter { it.isAudioOnly() }
         val videoFormats = formatList.filter { it.containsVideo() }
+        val videoOnlyFormats = formatList.filter { it.isVideoOnly() }
         val audioOnly = audioOnlyFormats.isNotEmpty() && videoFormats.isEmpty()
         val mergeAudioStream = audioOnlyFormats.size > 1
-        val formatId = formatList.joinToString(separator = "+") { it.formatId.toString() }
+        
+        // Get extractAudio from preferences
+        val basePreferences = DownloadPreferences.createFromPreferences()
+        val extractAudio = basePreferences.extractAudio
+        
+        // If video-only formats are selected without audio, ensure audio is included
+        val formatId = if (videoOnlyFormats.isNotEmpty() && audioOnlyFormats.isEmpty() && !extractAudio) {
+            // Add bestaudio to video-only formats to ensure audio is merged
+            formatList.joinToString(separator = "+") { it.formatId.toString() } + "+bestaudio/best"
+        } else {
+            formatList.joinToString(separator = "+") { it.formatId.toString() }
+        }
 
         val subtitleLanguage =
             (selectedSubtitles + selectedAutoCaptions).joinToString(separator = ",")
 
         val preferences =
-            DownloadPreferences.createFromPreferences()
+            basePreferences
                 .run {
                     copy(
                         formatIdString = formatId,

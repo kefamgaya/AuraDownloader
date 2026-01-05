@@ -306,7 +306,7 @@ object DownloadUtil {
                     downloadPlaylist = PLAYLIST.getBoolean(),
                     subdirectoryExtractor = SUBDIRECTORY_EXTRACTOR.getBoolean(),
                     subdirectoryPlaylistTitle = SUBDIRECTORY_PLAYLIST_TITLE.getBoolean(),
-                    commandDirectory = COMMAND_DIRECTORY.getString(),
+                    commandDirectory = "/storage/emulated/0/Download/Aura",
                     downloadSubtitle = downloadSubtitle,
                     embedSubtitle = embedSubtitle,
                     keepSubtitle = KEEP_SUBTITLE_FILES.getBoolean(),
@@ -442,7 +442,18 @@ object DownloadUtil {
                 addOption("--add-metadata")
                 addOption("--no-embed-info-json")
                 if (formatIdString.isNotEmpty()) {
-                    addOption("-f", formatIdString)
+                    // Ensure audio is included for video downloads
+                    // yt-dlp automatically merges audio when video-only formats are selected,
+                    // but we explicitly add bestaudio to ensure it happens
+                    val finalFormat = if (!formatIdString.contains("bestaudio") && 
+                                         !formatIdString.contains("/") &&
+                                         !extractAudio) {
+                        // If format doesn't already include audio, add bestaudio
+                        "$formatIdString+bestaudio/best"
+                    } else {
+                        formatIdString
+                    }
+                    addOption("-f", finalFormat)
                     if (mergeAudioStream) {
                         addOption("--audio-multistreams")
                     }

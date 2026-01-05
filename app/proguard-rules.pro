@@ -22,7 +22,46 @@
 
 #noinspection ShrinkerUnresolvedReference
 
--dontobfuscate
+# Enable obfuscation for smaller APK size
+# -dontobfuscate  # Removed to enable obfuscation
+
+# Aggressive optimization for size reduction
+-optimizationpasses 5
+-allowaccessmodification
+-repackageclasses ''
+
+# Remove logging in release builds
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int i(...);
+    public static int w(...);
+    public static int d(...);
+    public static int e(...);
+}
+
+# Remove debug code
+-assumenosideeffects class kotlin.jvm.internal.Intrinsics {
+    static void checkParameterIsNotNull(java.lang.Object, java.lang.String);
+}
+
+# Optimize enum classes
+-optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
+
+# Remove unused code more aggressively
+-dontpreverify
+-verbose
+
+# Keep only necessary classes for serialization
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
+
+# Remove unused resources (handled by shrinkResources, but keep rules for safety)
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
 -keep class com.yausername.** { *; }
 -keep class org.apache.commons.compress.archivers.zip.** { *; }

@@ -95,6 +95,7 @@ fun VideoCardV2(
     stateIndicator: @Composable (BoxScope.() -> Unit)? = null,
     actionButton: @Composable (BoxScope.() -> Unit)? = null,
     onButtonClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     with(viewState) {
         VideoCardV2(
@@ -107,6 +108,7 @@ fun VideoCardV2(
             stateIndicator = stateIndicator,
             actionButton = actionButton,
             onButtonClick = onButtonClick,
+            onClick = onClick,
         )
     }
 }
@@ -117,6 +119,7 @@ fun VideoListItem(
     viewState: Task.ViewState,
     stateIndicator: @Composable (() -> Unit)? = null,
     onButtonClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     with(viewState) {
         VideoListItem(
@@ -128,6 +131,7 @@ fun VideoListItem(
             fileSizeApprox = fileSizeApprox,
             stateIndicator = stateIndicator,
             onButtonClick = onButtonClick,
+            onClick = onClick,
         )
     }
 }
@@ -142,8 +146,14 @@ fun VideoListItem(
     fileSizeApprox: Double = .0,
     stateIndicator: @Composable (() -> Unit)? = null,
     onButtonClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
-    Row(modifier = modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
+    Row(
+        modifier = modifier
+            .height(IntrinsicSize.Min)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        verticalAlignment = Alignment.Top
+    ) {
         Box(modifier = Modifier) {
             ListItemImage(modifier = Modifier, thumbnailModel = thumbnailModel)
             VideoInfoLabel(
@@ -214,7 +224,9 @@ private fun VideoListItemPreview() {
                         downloadState = downloadState,
                     )
                 },
-            ) {}
+                onButtonClick = {},
+                onClick = null,
+            )
         }
     }
 }
@@ -230,6 +242,7 @@ fun VideoCardV2(
     stateIndicator: @Composable (BoxScope.() -> Unit)? = null,
     actionButton: @Composable (BoxScope.() -> Unit)? = null,
     onButtonClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     val containerColor =
         MaterialTheme.colorScheme.run {
@@ -237,7 +250,9 @@ fun VideoCardV2(
         }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column {
@@ -279,7 +294,9 @@ fun VideoCardV2Preview() {
             stateIndicator = {
                 CardStateIndicator(modifier = Modifier, downloadState = downloadState)
             },
-        ) {}
+            onButtonClick = {},
+            onClick = null,
+        )
     }
 }
 

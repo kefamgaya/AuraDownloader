@@ -13,7 +13,6 @@ import gain.aura.App.Companion.context
 import gain.aura.App.Companion.startService
 import gain.aura.App.Companion.stopService
 import gain.aura.database.objects.CommandTemplate
-import gain.aura.util.COMMAND_DIRECTORY
 import gain.aura.util.DownloadUtil
 import gain.aura.util.FileUtil
 import gain.aura.util.NotificationUtil
@@ -226,7 +225,7 @@ object Downloader {
                 }
             this[key] = newValue
         }
-        FileUtil.scanDownloadDirectoryToMediaLibrary(COMMAND_DIRECTORY.getString())
+        FileUtil.scanDownloadDirectoryToMediaLibrary("/storage/emulated/0/Download/Aura")
     }
 
     fun onProcessEnded() = mutableProcessCount.update { it - 1 }
